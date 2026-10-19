@@ -404,16 +404,51 @@ if(ballVisible){
  const halo=ctx.createRadialGradient(bx,cy,7,bx,cy,R*1.8);
  halo.addColorStop(0,'rgba(255,255,255,.22)');halo.addColorStop(.52,'rgba(232,244,255,.20)');halo.addColorStop(1,'rgba(255,255,255,0)');
  ctx.fillStyle=halo;ctx.beginPath();ctx.arc(bx,cy,R*1.8,0,TAU);ctx.fill();
- // Esfera cromada con luces superiores descentradas.
- let metal=ctx.createRadialGradient(bx-R*.44,cy-R*.52,R*.08,bx+R*.13,cy+R*.12,R*1.18);
- metal.addColorStop(0,'#ffffff');metal.addColorStop(.18,'#f8ffff');
- metal.addColorStop(.42,'#e6f0f9');metal.addColorStop(.69,'#a9bed0');
- metal.addColorStop(.87,'#5e788b');metal.addColorStop(1,'#182b3b');
- ctx.shadowColor='#fff5dc';ctx.shadowBlur=15;
- ctx.fillStyle=metal;ctx.beginPath();ctx.arc(bx,cy,R,0,TAU);ctx.fill();ctx.shadowBlur=0;
- ctx.strokeStyle='#ffffffc9';ctx.lineWidth=1.7;ctx.stroke();
- ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(bx-R*.38,cy-R*.46,R*.29,R*.18,-.65,0,TAU);ctx.fill();
- ctx.fillStyle='#d4f5ffb8';ctx.beginPath();ctx.arc(bx+R*.38,cy+R*.25,R*.14,0,TAU);ctx.fill();
+ // Esfera de acero con reflexión deformada de las superficies vecinas.
+ // La imagen de la pista está ya dibujada cuando se coloca la bola.
+ const patchRadius=70,dim=44,diameter=patchRadius*2;
+ const sx=Math.round(bx+500-patchRadius),sy=Math.round(cy+500-patchRadius);
+ const surroundings=ctx.getImageData(sx,sy,diameter,diameter).data;
+ const reflective=document.createElement('canvas');reflective.width=dim;reflective.height=dim;
+ const rc=reflective.getContext('2d');
+ const image=rc.createImageData(dim,dim),out=image.data;
+ for(let py=0;py<dim;py++){
+  for(let px=0;px<dim;px++){
+   const nx=(px+.5)/dim*2-1,ny=(py+.5)/dim*2-1,rad=nx*nx+ny*ny,k=(py*dim+px)*4;
+   if(rad>=1){out[k+3]=0;continue;}
+   const nz=Math.sqrt(1-rad),rx=2*nx*nz,ry=2*ny*nz;
+   const ix=Math.max(0,Math.min(diameter-1,Math.round(patchRadius+rx*patchRadius*.82-nx*9)));
+   const iy=Math.max(0,Math.min(diameter-1,Math.round(patchRadius+ry*patchRadius*.82-ny*9)));
+   const si=(iy*diameter+ix)*4;
+   const ambient=[199,213,228],metallic=.69+.29*nz-.15*(1-nz);
+   const glint=155*Math.pow(Math.max(0,1-Math.hypot(nx+.34,ny+.47)*2.7),3);
+   for(let c=0;c<3;c++){
+    const background=surroundings[si+3]>30?surroundings[si+c]:ambient[c];
+    out[k+c]=Math.max(0,Math.min(255,(background*.82+ambient[c]*.18)*metallic+glint+33*(1-nz)));
+   }
+   out[k+3]=255;
+  }
+ }
+ rc.putImageData(image,0,0);
+ // Borde reflectante, iluminación de techo y sombra de contacto.
+ ctx.save();
+ const rim=ctx.createRadialGradient(bx-R*.22,cy-R*.3,R*.14,bx,cy,R*1.06);
+ rim.addColorStop(0,'#edf5f8');rim.addColorStop(.62,'#a7b9c6');
+ rim.addColorStop(.82,'#36434e');rim.addColorStop(.95,'#f2faff');rim.addColorStop(1,'#1d2c35');
+ ctx.fillStyle=rim;ctx.beginPath();ctx.arc(bx,cy,R+.8,0,TAU);ctx.fill();
+ ctx.beginPath();ctx.arc(bx,cy,R,0,TAU);ctx.clip();
+ ctx.drawImage(reflective,bx-R,cy-R,R*2,R*2);
+ ctx.translate(bx,cy);ctx.rotate(-.40);
+ const softbox=ctx.createLinearGradient(-R,-R,R,R);
+ softbox.addColorStop(0,'rgba(255,255,255,0)');
+ softbox.addColorStop(.37,'rgba(255,255,255,.06)');
+ softbox.addColorStop(.46,'rgba(255,255,255,.47)');
+ softbox.addColorStop(.54,'rgba(255,255,255,.05)');
+ softbox.addColorStop(1,'rgba(255,255,255,0)');
+ ctx.fillStyle=softbox;ctx.fillRect(-R,-R,R*2,R*2);
+ ctx.fillStyle='#ffffffeb';ctx.beginPath();ctx.ellipse(-R*.40,-R*.51,R*.24,R*.14,-.6,0,TAU);ctx.fill();
+ ctx.restore();
+ ctx.strokeStyle='#f5faff';ctx.lineWidth=1.05;ctx.beginPath();ctx.arc(bx,cy,R,Math.PI*1.08,Math.PI*1.78);ctx.stroke();
 }
 if(animation)hand((performance.now()-animation.begin)/1000);
 ctx.restore();}
