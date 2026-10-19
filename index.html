@@ -161,11 +161,10 @@ html,body{min-height:100%;}
 <script>
 'use strict';
 const TAU=Math.PI*2,base=-Math.PI/2,$=id=>document.getElementById(id),canvas=$('wheel'),ctx=canvas.getContext('2d');
-// La carrera exterior dura ahora la mitad; el suspense se concentra en los rebotes.
-// El rotor queda completamente quieto unos dos segundos antes de que pare la bola.
-const RELEASE_T=.85,ROLL_T=2.15,FALL_T=1.00,SETTLE_T=5.40;
-const WIN_T=RELEASE_T+ROLL_T+FALL_T+SETTLE_T;
-const ROTOR_STOP_T=RELEASE_T+ROLL_T+FALL_T+SETTLE_T*.60;
+// Modelo de movimiento: pista fija exterior, plano inclinado, deflectores y separadores.
+// El resultado NO se elige por adelantado: se lee del alojamiento donde acaba la bola.
+const RELEASE_T=.85,TRACK_T=2.10,WIN_T=10.65,ROTOR_STOP_T=7.85;
+const SIM_DT=1/180;
 const clamp=(v,a,b)=>Math.max(a,Math.min(v,b)),smooth=x=>{x=clamp(x,0,1);return x*x*(3-2*x)},norm=a=>((a%TAU)+TAU)%TAU;
 // alumnos.txt se mantiene fuera del HTML. Cada nueva lista tiene un historial separado.
 let fullNames=[], all=[], STORAGE='', selectedOrder=[], dataLoaded=false;
@@ -186,8 +185,8 @@ function loadRoster(text,origin){
  $('status').textContent=list.length+' alumnos disponibles desde '+origin+'. Pulsa INICIAR o toca el eje central.';
  return true;
 }
-let wheelNames=[],available=[],rotation=0,ballAngle=-.57,ballRadius=459,ballVisible=false,highlight=-1;
-let animation=null,settled=null,phase='idle',soundOn=true,audio=null,lastTick=-1,bounceKeyframes=[];
+let wheelNames=[],available=[],rotation=0,ballAngle=-.57,ballRadius=459,ballLift=0,ballVisible=false,highlight=-1;
+let animation=null,settled=null,phase='idle',soundOn=true,audio=null,lastTick=-1,trajectory=[];
 const remaining=()=>all.filter(x=>!selectedOrder.includes(x.full));
 function persist(){try{if(STORAGE)localStorage.setItem(STORAGE,JSON.stringify(selectedOrder));}catch(e){}}
 function safe(s){return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');}
@@ -195,63 +194,149 @@ function sync(){available=remaining();$('remaining').textContent=available.lengt
  $('list').innerHTML=all.map(x=>`<label class="person ${selectedOrder.includes(x.full)?'gone':''}"><input type="checkbox" data-i="${x.id}" ${selectedOrder.includes(x.full)?'checked':''} ${animation?'disabled':''}><span>${safe(x.full)}</span></label>`).join('');
  $('exporttxt').disabled=!dataLoaded||!!animation;$('start').disabled=!dataLoaded||!!animation||!available.length;$('centerstart').disabled=!dataLoaded||!!animation||!available.length;$('undo').disabled=!!animation||!selectedOrder.length;$('reset').disabled=!!animation||!selectedOrder.length;
 }
-function clearBall(){wheelNames=available.slice();highlight=-1;settled=null;ballVisible=false;phase='idle';}
+function clearBall(){wheelNames=available.slice();highlight=-1;settled=null;ballVisible=false;ballLift=0;phase='idle';}
 $('list').addEventListener('change',e=>{if(animation||e.target.type!=='checkbox')return;const item=all[Number(e.target.dataset.i)];if(!item)return;
  if(e.target.checked){if(!selectedOrder.includes(item.full))selectedOrder.push(item.full)}else selectedOrder=selectedOrder.filter(x=>x!==item.full);
  persist();sync();clearBall();$('winner').textContent='—';$('subresult').textContent='Lista modificada manualmente';$('status').textContent='Los cambios se aplicarán en el próximo sorteo';});
 function rand(){try{const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]/4294967296;}catch(e){return Math.random()}}
 function tone(f=450,duration=.07,type='sine',volume=.02){if(!soundOn)return;try{audio=audio||new (window.AudioContext||window.webkitAudioContext)();if(audio.state==='suspended')audio.resume();const o=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime;o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(volume,t);g.gain.exponentialRampToValueAtTime(.0001,t+duration);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+duration)}catch(e){}}
 function fanfare(){if(!soundOn)return;const notes=[[523,.0,.13],[659,.13,.13],[784,.26,.14],[1047,.43,.27]];for(const [f,delay,d] of notes){setTimeout(()=>tone(f,d,'triangle',.04),Math.round(delay*1000))}}
-// La selección se efectúa de forma uniforme entre quienes siguen disponibles.
-// El recorrido visual se construye después, con irregularidades independientes para cada giro.
-const a0=-.57,angularStart=16.0,angularDrag=4.20,FALL_DECEL=3.40;
-function orbitDistance(s){return angularStart*s-.5*angularDrag*s*s;}
-function endFallAngle(){const omega=angularStart-angularDrag*ROLL_T;return a0-orbitDistance(ROLL_T)-omega*FALL_T+.5*FALL_DECEL*FALL_T*FALL_T;}
-function makeBounceFrames(){
- // El ángulo final es aleatorio antes de elegir visualmente la alineación del rotor.
- // Saltos con trayectorias cortas, cambios de dirección y amplitud decreciente.
- // Los últimos impactos se producen cuando el rotor YA está detenido.
- const u=[0,.075,.17,.265,.36,.47,.58,.68,.77,.845,.902,.948,.977,1];
- const jumps=[-.52,-.44,-.33,.24,-.29,.25,-.22,.20,-.17,.13,-.095,.062,-.037];
- const radii=[404,416,397,415,399,413,399,411,401,409,403,406,402,403];
- let angle=endFallAngle(),direction=rand()<.5?1:-1;
- const frames=[{u:0,angle,radius:404}];
- for(let i=1;i<u.length;i++){
-  const randomFactor=.78+.44*rand(),bounce=jumps[i-1]*randomFactor;
-  // La componente de avance se atenúa, y pequeños golpes cambian la trayectoria.
-  angle+=i<4?bounce:direction*bounce;
-  const damping=1-.80*u[i];
-  const radius=i===u.length-1?403:403+(radii[i]-403)*damping;
-  frames.push({u:u[i],angle,radius});
- }
- return frames;
+// Integración física en coordenadas polares, con paso temporal fijo de 1/180 s.
+// El potencial radial imita la pendiente de la cubeta; la resistencia disipa energía.
+// Los deflectores permanecen fijos y las paredes de las casillas giran con el rotor.
+function rotorPosition(t,start,turns){
+ const u=clamp(t/ROTOR_STOP_T,0,1);
+ return start+turns*(1-(1-u)**3);
 }
-function ballTravel(s){
- if(s<=0)return{angle:a0,radius:459,stage:'release'};
- if(s<=ROLL_T)return{angle:a0-orbitDistance(s),radius:459,stage:'track'};
- const fall=s-ROLL_T,omega=angularStart-angularDrag*ROLL_T;
- if(fall<=FALL_T){const q=fall/FALL_T;
-  return {angle:a0-orbitDistance(ROLL_T)-omega*fall+.5*FALL_DECEL*fall*fall+.022*Math.sin(q*42)*Math.sin(Math.PI*q),
-   radius:459-55*smooth(q)+7*Math.sin(q*27)*Math.sin(Math.PI*q)**2,stage:'fall'};}
- const u=clamp((fall-FALL_T)/SETTLE_T,0,1),frames=bounceKeyframes;
- for(let i=1;i<frames.length;i++){
-  if(u<=frames[i].u){const l=frames[i-1],r=frames[i],z=(u-l.u)/(r.u-l.u);
-   // La inversión de velocidad en cada impacto reproduce los cambios de dirección,
-   // mientras que la oscilación radial representa la bola saltando entre separadores.
-   const radius=l.radius+(r.radius-l.radius)*z-3*Math.sin(Math.PI*z)*(1-u);
-   return{angle:l.angle+(r.angle-l.angle)*z,radius,stage:'bounce',impact:i};}
- }
- return{...frames[frames.length-1],stage:'bounce',impact:frames.length-1};
+function rotorSpeed(t,turns){
+ const u=clamp(t/ROTOR_STOP_T,0,1);
+ return t>=ROTOR_STOP_T?0:3*turns*(1-u)**2/ROTOR_STOP_T;
 }
-function start(){if(animation||!dataLoaded||!available.length)return;
- wheelNames=available.slice();highlight=-1;settled=null;ballVisible=false;ballAngle=a0;ballRadius=459;
- bounceKeyframes=makeBounceFrames();const index=Math.floor(rand()*wheelNames.length),ballEnd=bounceKeyframes[bounceKeyframes.length-1].angle,step=TAU/wheelNames.length;
- // Align the freely chosen student with the position at which the ball finishes.
- const desired=ballEnd-base-(index+.5)*step;
- const spinDistanceBase=desired-rotation;const turns=Math.round((19-spinDistanceBase)/TAU),distance=spinDistanceBase+turns*TAU;
- // La velocidad angular se extingue realmente ANTES de que acaben los rebotes.
- animation={begin:performance.now(),index,ballEnd,rotationStart:rotation,rotationEnd:rotation+distance,distance};phase='start';lastTick=-1;
- $('winner').textContent='—';$('subresult').textContent='Sorteo en curso';$('status').textContent='El rotor comienza a girar…';sync();tone(460,.11,'triangle',.025);
+function deltaAngle(a,b){return Math.atan2(Math.sin(a-b),Math.cos(a-b));}
+function buildPhysicalSpin(names){
+ const count=names.length,step=TAU/count;
+ const rotorStart=norm(rotation),totalTurn=TAU*(2.85+rand()*.52);
+ const trackStart=-.57+(rand()-.5)*.12;
+ let theta=trackStart,r=459,omega=-(14.4+rand()*2.1),vr=0;
+ let z=0,vz=0,deflectUntil=0,fretUntil=0,events=0;
+ const trackFriction=.34+rand()*.09,bowlFriction=.46+rand()*.15;
+ const states=[];
+ const nsteps=Math.round(WIN_T/SIM_DT);
+ let settledPocket=-1;
+ let lastContact='';
+ for(let k=0;k<=nsteps;k++){
+  const t=k*SIM_DT;
+  const rotor=rotorPosition(t,rotorStart,totalTurn),rw=rotorSpeed(t,totalTurn);
+  let stage=t<RELEASE_T?'release':t<RELEASE_T+TRACK_T?'track':
+      t<RELEASE_T+TRACK_T+1.65?'fall':'bounce';
+  let impact=false;
+  if(t>=RELEASE_T&&t<RELEASE_T+TRACK_T){
+   omega*=Math.exp(-trackFriction*SIM_DT);
+   theta+=omega*SIM_DT;
+   r=459;vr=0;
+  }else if(t>=RELEASE_T+TRACK_T){
+   if(t-SIM_DT<RELEASE_T+TRACK_T){vr=-49;z=0;vz=0;}
+   const elapsed=t-(RELEASE_T+TRACK_T);
+   const drag=bowlFriction+(elapsed>3.2?.35:0)+(elapsed>5.5?.70:0);
+   omega*=Math.exp(-drag*SIM_DT);
+   // El rozamiento de las piezas móviles transmite algo de velocidad al rotor.
+   if(r<416)omega+=(rw-omega)*(elapsed>5.2?.68:.12)*SIM_DT;
+   // El descenso se acentúa cuando la velocidad tangencial ya no sostiene a la bola.
+   const slopeAccel=r>414?(-48-(elapsed>4.7?68:0)):-32;
+   const outward=.00017*r*omega*omega;
+   const spring=r<409 && elapsed>3.3 ? -(r-403)*7.5 : 0;
+   const radialDamp=r<416?2.7:0.40;
+   vr+=(slopeAccel+outward+spring-radialDamp*vr)*SIM_DT;
+   r+=vr*SIM_DT;
+   theta+=omega*SIM_DT;
+   // Reflejo contra el borde superior de la cubeta y la base de la corona.
+   if(r>460){r=460;vr=-Math.abs(vr)*.53;impact=true;events++;}
+   if(r<392){r=392;vr=Math.abs(vr)*.48;omega*=.88;impact=true;events++;}
+   // Choques con los ocho diamantes estacionarios.
+   if(t>deflectUntil&&r>=413&&r<=437&&elapsed<4.9){
+    for(let j=0;j<8;j++){
+     const da=deltaAngle(theta,j*TAU/8+.14);
+     const tangentialDist=Math.abs(da*r);
+     const radialDist=Math.abs(r-424);
+     if(tangentialDist<12.5&&radialDist<13){
+      // Impacto oblicuo, rebote radial y dispersión tangencial.
+      vr=36+rand()*70;
+      const before=omega;
+      omega=omega*(.53+.23*rand())+(rand()-.5)*5.3;
+      // Algunas colisiones invierten de verdad el avance de la bola.
+      if(rand()<.27)omega=-before*(.24+.29*rand());
+      theta+=Math.sign(omega||1)*.007;
+      deflectUntil=t+.20;
+      vz=120+rand()*95;
+      impact=true;events++;
+      lastContact='diamond';
+      break;
+     }
+    }
+   }
+   // Separadores entre alojamientos de la rueda móvil.
+   if(r<=416&&r>=389&&t>fretUntil&&t<9.18&&elapsed>.45){
+    const rel=norm(theta-rotor-base);
+    const phaseInPocket=rel%step;
+    const clearance=Math.min(phaseInPocket,step-phaseInPocket)*r;
+    const relativeOmega=omega-rw;
+    if(clearance<8.5&&Math.abs(relativeOmega)>.27){
+     // La componente tangencial rebota contra el separador.
+     omega=rw-relativeOmega*(.28+.36*rand());
+     // El choque eleva la bola, que puede volver a la pista inclinada.
+     vr=Math.max(vr,23+rand()*52);
+     theta+=(phaseInPocket<step/2?1:-1)*(.010+rand()*.005);
+     fretUntil=t+(.13+rand()*.07);
+     vz=60+rand()*110;
+     impact=true;events++;
+     lastContact='fret';
+    }
+   }
+   // Pequeños rebotes verticales vistos desde arriba: al perder energía se extinguen.
+   vz-=470*SIM_DT;
+   z+=vz*SIM_DT;
+   if(z<0){z=0;if(vz < -34&&elapsed<6.3){vz=-vz*.25;}else vz=0;}
+   // Dentro de una casilla, el desnivel del fondo hace que ruede hacia su centro.
+   // Esta fuerza es LOCAL a la casilla actual: no atrae a una posición predeterminada.
+   if(t>8.65&&r<416){
+    const rel=norm(theta-rotor-base),local=rel%step,offset=local-step/2;
+    const relativeOmega=omega-rw;
+    omega+=(-10.0*offset-3.5*relativeOmega)*SIM_DT;
+    vr+=(-(r-403)*22-6*vr)*SIM_DT;
+    theta+=(-10.0*offset-3.5*relativeOmega)*SIM_DT*SIM_DT*.5;
+   }
+  }
+  states.push({t,angle:theta,radius:r,z,rotation:rotor,impact,stage});
+ }
+ // El alumno se lee de la posición angular verdadera de la bola al final.
+ const last=states[states.length-1];
+ const position=norm(last.angle-last.rotation-base);
+ const index=Math.min(count-1,Math.floor(position/step));
+ // Ajuste LOCAL bajo la propia casilla, nunca un recorrido hacia el ganador elegido.
+ // Se aplica solo en los últimos instantes y la corrección es inferior a media casilla.
+ const center=last.rotation+base+(index+.5)*step;
+ const error=deltaAngle(last.angle,center);
+ const settleStart=9.95;
+ for(const p of states){if(p.t>=settleStart){
+  const q=smooth((p.t-settleStart)/(WIN_T-settleStart));
+  p.angle-=error*q;
+  p.radius+=(403-p.radius)*q;
+  p.z*=(1-q);
+  p.stage='settle';
+ }}
+ const finish=states[states.length-1];
+ return {states,index,begin:performance.now(),duration:WIN_T,
+  rotationEnd:finish.rotation,angleEnd:finish.angle,impacts:events,
+  initial:trackStart,scatterTurns:Math.abs((theta-trackStart)/TAU),contact:lastContact};
+}
+function start(){
+ if(animation||!dataLoaded||!available.length)return;
+ wheelNames=available.slice();highlight=-1;settled=null;ballVisible=false;
+ // Cada ejecución integra una trayectoria independiente. Ningún índice está prefijado.
+ animation=buildPhysicalSpin(wheelNames);
+ phase='release';lastTick=-1;
+ $('winner').textContent='—';$('subresult').textContent='Sorteo en curso';
+ $('status').textContent='El rotor comienza a girar…';sync();tone(460,.11,'triangle',.025);
 }
 function rectCircle(r,fill){ctx.beginPath();ctx.arc(0,0,r,0,TAU);ctx.fillStyle=fill;ctx.fill()}
 function ring(r,width,color){ctx.beginPath();ctx.arc(0,0,r,0,TAU);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke()}
@@ -293,31 +378,45 @@ let hub=ctx.createRadialGradient(-20,-30,5,0,0,74);hub.addColorStop(0,'#fff8d0')
 // ball tracks: bright glint, motion blur and rolling sphere
 if(ballVisible){const bx=Math.cos(ballAngle)*ballRadius,by=Math.sin(ballAngle)*ballRadius;
 if(phase==='track'||phase==='fall'){ctx.strokeStyle='#dcefff25';ctx.lineWidth=7;ctx.beginPath();ctx.arc(0,0,ballRadius,ballAngle+.045,ballAngle+.21);ctx.stroke()}
-ctx.fillStyle='#0008';ctx.beginPath();ctx.ellipse(bx+5,by+8,13,9,0,0,TAU);ctx.fill();let gb=ctx.createRadialGradient(bx-5,by-6,0,bx,by,14);gb.addColorStop(0,'#ffffff');gb.addColorStop(.26,'#f7ffff');gb.addColorStop(.6,'#aab5bc');gb.addColorStop(1,'#3e4653');ctx.fillStyle=gb;ctx.beginPath();ctx.arc(bx,by,12.6,0,TAU);ctx.fill();ctx.strokeStyle='#fefefeaa';ctx.lineWidth=1;ctx.stroke();}
+ctx.fillStyle='#0008';ctx.beginPath();ctx.ellipse(bx+5+ballLift*.32,by+8+ballLift*.35,13+ballLift*.10,9+ballLift*.05,0,0,TAU);ctx.fill();let gb=ctx.createRadialGradient(bx-5-ballLift*.06,by-6-ballLift*.08,0,bx,by,14);gb.addColorStop(0,'#ffffff');gb.addColorStop(.26,'#f7ffff');gb.addColorStop(.6,'#aab5bc');gb.addColorStop(1,'#3e4653');ctx.fillStyle=gb;ctx.beginPath();ctx.arc(bx,by,12.6,0,TAU);ctx.fill();ctx.strokeStyle='#fefefeaa';ctx.lineWidth=1;ctx.stroke();}
 if(animation)hand((performance.now()-animation.begin)/1000);
 ctx.restore();}
 
-function endSpin(){if(!animation)return;const a=animation,index=a.index,picked=wheelNames[index];rotation=a.rotationEnd;
- ballAngle=a.ballEnd;ballRadius=403;ballVisible=true;highlight=index;
+function endSpin(){
+ if(!animation)return;
+ const a=animation,index=a.index,picked=wheelNames[index];
+ rotation=a.rotationEnd;ballAngle=a.angleEnd;ballRadius=403;ballVisible=true;highlight=index;
  settled={index,rotationEnd:rotation,ballOffset:base+(index+.5)*TAU/wheelNames.length};
  animation=null;phase='settled';selectedOrder.push(picked.full);persist();
- $('winner').textContent=picked.full;$('subresult').textContent='✓ Seleccionado/a · Marcado/a en la lista · Excluido/a del siguiente sorteo';
+ $('winner').textContent=picked.full;
+ $('subresult').textContent='✓ Seleccionado/a · Marcado/a en la lista · Excluido/a del siguiente sorteo';
  $('status').textContent=available.length>1?'Sorteo concluido · Preparado para la siguiente selección':'Sorteo concluido';
- $('result').classList.remove('winnerflash');void $('result').offsetWidth;$('result').classList.add('winnerflash');fanfare();sync();}
-function frame(now){if(animation){const a=animation,t=clamp((now-a.begin)/1000,0,WIN_T);
- const fraction=clamp(t/ROTOR_STOP_T,0,1);
- rotation=a.rotationStart+a.distance*(1-(1-fraction)**3);
- if(t<RELEASE_T){phase='start';ballVisible=false;$('status').textContent='Preparando el lanzamiento…';}
- else{const s=t-RELEASE_T,b=ballTravel(s);ballAngle=b.angle;ballRadius=b.radius;ballVisible=true;phase=b.stage;
- if(phase==='track')$('status').textContent='La bola gira por la pista exterior…';
- else if(phase==='fall')$('status').textContent='Pierde inercia y cae sobre los separadores…';
- else if(t>=ROTOR_STOP_T)$('status').textContent='¡La ruleta está parada, pero la bola sigue saltando!';
- else $('status').textContent='La ruleta se frena; la bola rebota entre varias casillas…';
- if(phase==='bounce'&&b.impact!==lastTick){lastTick=b.impact;tone(420+rand()*360,.045,'triangle',.016)} }
- if(t>=WIN_T)endSpin();}
- else if(settled){rotation=settled.rotationEnd;
- ballAngle=settled.ballOffset+rotation;ballRadius=403;ballVisible=true;}
- drawWheel();requestAnimationFrame(frame);}
+ $('result').classList.remove('winnerflash');void $('result').offsetWidth;$('result').classList.add('winnerflash');fanfare();sync();
+}
+function frame(now){
+ if(animation){
+  const a=animation,elapsed=clamp((now-a.begin)/1000,0,a.duration);
+  const idx=Math.min(a.states.length-1,Math.floor(elapsed/SIM_DT));
+  const p=a.states[idx],q=a.states[Math.min(a.states.length-1,idx+1)],k=clamp(elapsed/SIM_DT-idx,0,1);
+  rotation=p.rotation+(q.rotation-p.rotation)*k;
+  ballAngle=p.angle+(q.angle-p.angle)*k;
+  ballRadius=p.radius+(q.radius-p.radius)*k;
+  ballLift=p.z+(q.z-p.z)*k;
+  ballVisible=elapsed>=RELEASE_T;phase=p.stage;
+  if(phase==='release')$('status').textContent='Preparando el lanzamiento…';
+  else if(phase==='track')$('status').textContent='La bola circula en sentido contrario por el carril exterior…';
+  else if(phase==='fall')$('status').textContent='Pierde velocidad, desciende por el plano inclinado…';
+  else if(phase==='bounce')$('status').textContent=elapsed>ROTOR_STOP_T?'Rotor detenido; la bola sigue rebotando libremente…':'Impactos contra diamantes y separadores: ¡todavía puede caer en cualquiera!';
+  else $('status').textContent='La bola está encontrando su alojamiento…';
+  if(p.impact&&idx!==lastTick){lastTick=idx;tone(330+rand()*430,.035,'triangle',.016);}
+  if(elapsed>=a.duration)endSpin();
+ }else if(settled){
+  rotation=settled.rotationEnd;
+  ballAngle=settled.ballOffset+rotation;
+  ballRadius=403;ballLift=0;ballVisible=true;
+ }
+ drawWheel();requestAnimationFrame(frame);
+}
 function undo(){if(animation||!selectedOrder.length)return;selectedOrder.pop();persist();sync();clearBall();$('winner').textContent='—';$('subresult').textContent='Última exclusión anulada';$('status').textContent='Lista actualizada';}
 function reset(){if(animation||!selectedOrder.length)return;if(!confirm('¿Reincorporar a todos los estudiantes al sorteo?'))return;
  selectedOrder=[];persist();sync();clearBall();$('winner').textContent='—';$('subresult').textContent='Todos están disponibles';$('status').textContent='Listado restaurado';}
