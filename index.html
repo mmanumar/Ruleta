@@ -404,51 +404,41 @@ if(ballVisible){
  const halo=ctx.createRadialGradient(bx,cy,7,bx,cy,R*1.8);
  halo.addColorStop(0,'rgba(255,255,255,.22)');halo.addColorStop(.52,'rgba(232,244,255,.20)');halo.addColorStop(1,'rgba(255,255,255,0)');
  ctx.fillStyle=halo;ctx.beginPath();ctx.arc(bx,cy,R*1.8,0,TAU);ctx.fill();
- // Esfera de acero con reflexión deformada de las superficies vecinas.
- // La imagen de la pista está ya dibujada cuando se coloca la bola.
- const patchRadius=70,dim=44,diameter=patchRadius*2;
- const sx=Math.round(bx+500-patchRadius),sy=Math.round(cy+500-patchRadius);
- const surroundings=ctx.getImageData(sx,sy,diameter,diameter).data;
- const reflective=document.createElement('canvas');reflective.width=dim;reflective.height=dim;
- const rc=reflective.getContext('2d');
- const image=rc.createImageData(dim,dim),out=image.data;
- for(let py=0;py<dim;py++){
-  for(let px=0;px<dim;px++){
-   const nx=(px+.5)/dim*2-1,ny=(py+.5)/dim*2-1,rad=nx*nx+ny*ny,k=(py*dim+px)*4;
-   if(rad>=1){out[k+3]=0;continue;}
-   const nz=Math.sqrt(1-rad),rx=2*nx*nz,ry=2*ny*nz;
-   const ix=Math.max(0,Math.min(diameter-1,Math.round(patchRadius+rx*patchRadius*.82-nx*9)));
-   const iy=Math.max(0,Math.min(diameter-1,Math.round(patchRadius+ry*patchRadius*.82-ny*9)));
-   const si=(iy*diameter+ix)*4;
-   const ambient=[199,213,228],metallic=.69+.29*nz-.15*(1-nz);
-   const glint=155*Math.pow(Math.max(0,1-Math.hypot(nx+.34,ny+.47)*2.7),3);
-   for(let c=0;c<3;c++){
-    const background=surroundings[si+3]>30?surroundings[si+c]:ambient[c];
-    out[k+c]=Math.max(0,Math.min(255,(background*.82+ambient[c]*.18)*metallic+glint+33*(1-nz)));
-   }
-   out[k+3]=255;
-  }
- }
- rc.putImageData(image,0,0);
- // Borde reflectante, iluminación de techo y sombra de contacto.
- ctx.save();
- const rim=ctx.createRadialGradient(bx-R*.22,cy-R*.3,R*.14,bx,cy,R*1.06);
- rim.addColorStop(0,'#edf5f8');rim.addColorStop(.62,'#a7b9c6');
- rim.addColorStop(.82,'#36434e');rim.addColorStop(.95,'#f2faff');rim.addColorStop(1,'#1d2c35');
- ctx.fillStyle=rim;ctx.beginPath();ctx.arc(bx,cy,R+.8,0,TAU);ctx.fill();
- ctx.beginPath();ctx.arc(bx,cy,R,0,TAU);ctx.clip();
- ctx.drawImage(reflective,bx-R,cy-R,R*2,R*2);
- ctx.translate(bx,cy);ctx.rotate(-.40);
- const softbox=ctx.createLinearGradient(-R,-R,R,R);
- softbox.addColorStop(0,'rgba(255,255,255,0)');
- softbox.addColorStop(.37,'rgba(255,255,255,.06)');
- softbox.addColorStop(.46,'rgba(255,255,255,.47)');
- softbox.addColorStop(.54,'rgba(255,255,255,.05)');
- softbox.addColorStop(1,'rgba(255,255,255,0)');
- ctx.fillStyle=softbox;ctx.fillRect(-R,-R,R*2,R*2);
- ctx.fillStyle='#ffffffeb';ctx.beginPath();ctx.ellipse(-R*.40,-R*.51,R*.24,R*.14,-.6,0,TAU);ctx.fill();
+
+ // NIQUEL PULIDO OPACO: reflejos de alto contraste, no transparencia.
+ // Renderizamos primero una base maciza de acero niquelado; no se dibuja el suelo a través de la esfera.
+ const shell=ctx.createRadialGradient(bx-R*.40,cy-R*.54,R*.03,bx+R*.12,cy+R*.10,R*1.17);
+ shell.addColorStop(0,'#fffef8');shell.addColorStop(.15,'#ffffff');
+ shell.addColorStop(.30,'#e9eef2');shell.addColorStop(.49,'#c5cbd0');
+ shell.addColorStop(.65,'#899198');shell.addColorStop(.78,'#5e656b');
+ shell.addColorStop(.87,'#d7dce0');shell.addColorStop(.94,'#737a80');
+ shell.addColorStop(1,'#252a30');
+ ctx.save();ctx.shadowColor='#000b';ctx.shadowBlur=5;ctx.shadowOffsetX=2;ctx.shadowOffsetY=3;
+ ctx.fillStyle=shell;ctx.beginPath();ctx.arc(bx,cy,R,0,TAU);ctx.fill();ctx.restore();
+ ctx.save();ctx.beginPath();ctx.arc(bx,cy,R*.98,0,TAU);ctx.clip();
+ // Dos franjas reflectantes finas, curvadas por la esfera, como un softbox fotografiado sobre níquel.
+ ctx.save();ctx.translate(bx,cy);ctx.rotate(-.47);
+ const strip=ctx.createLinearGradient(-R,-R*.9,R,R*.9);
+ strip.addColorStop(0,'rgba(17,29,39,0)');
+ strip.addColorStop(.26,'rgba(25,36,43,.12)');
+ strip.addColorStop(.38,'rgba(255,255,255,.28)');
+ strip.addColorStop(.47,'rgba(255,255,255,.90)');
+ strip.addColorStop(.55,'rgba(255,255,255,.12)');
+ strip.addColorStop(.69,'rgba(29,39,47,.58)');
+ strip.addColorStop(.82,'rgba(250,253,255,.34)');
+ strip.addColorStop(1,'rgba(255,255,255,0)');
+ ctx.fillStyle=strip;ctx.fillRect(-R*1.4,-R*1.4,R*2.8,R*2.8);ctx.restore();
+ // Reflexión blanca estrecha en la parte superior izquierda.
+ ctx.fillStyle='rgba(255,255,255,.98)';ctx.beginPath();
+ ctx.ellipse(bx-R*.34,cy-R*.49,R*.27,R*.145,-.56,0,TAU);ctx.fill();
+ const underside=ctx.createLinearGradient(bx,cy,bx,cy+R);
+ underside.addColorStop(0,'rgba(255,255,255,0)');
+ underside.addColorStop(.70,'rgba(31,39,45,.10)');
+ underside.addColorStop(1,'rgba(14,19,24,.53)');
+ ctx.fillStyle=underside;ctx.fillRect(bx-R,cy-R,R*2,R*2);
  ctx.restore();
- ctx.strokeStyle='#f5faff';ctx.lineWidth=1.05;ctx.beginPath();ctx.arc(bx,cy,R,Math.PI*1.08,Math.PI*1.78);ctx.stroke();
+ ctx.strokeStyle='#ffffffd6';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(bx,cy,R-.3,Math.PI*1.04,Math.PI*1.73);ctx.stroke();
+ ctx.strokeStyle='#1f2933c2';ctx.lineWidth=.9;ctx.beginPath();ctx.arc(bx,cy,R-.35,Math.PI*.08,Math.PI*.92);ctx.stroke();
 }
 if(animation)hand((performance.now()-animation.begin)/1000);
 ctx.restore();}
