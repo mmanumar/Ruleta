@@ -161,10 +161,12 @@ html,body{min-height:100%;}
 <script>
 'use strict';
 const TAU=Math.PI*2,base=-Math.PI/2,$=id=>document.getElementById(id),canvas=$('wheel'),ctx=canvas.getContext('2d');
-// Modelo de movimiento: pista fija exterior, plano inclinado, deflectores y separadores.
-// El resultado NO se elige por adelantado: se lee del alojamiento donde acaba la bola.
-const RELEASE_T=.85,TRACK_T=2.10,WIN_T=10.65,ROTOR_STOP_T=7.85;
-const SIM_DT=1/180;
+// Modelo: pista exterior breve, descenso radial, deflectores fijos y separadores móviles.
+// Rotor lento y bola con pérdida de energía; sin destino ni trayectoria prefijados.
+// La pista exterior dura ~1 segundo; el desenlace ocupa la mayor parte del sorteo.
+// El rotor realiza poco más de una vuelta y queda inmóvil antes que la bola.
+const RELEASE_T=.65,TRACK_T=1.18,WIN_T=10.0,ROTOR_STOP_T=7.25;
+const SIM_DT=1/200;
 const clamp=(v,a,b)=>Math.max(a,Math.min(v,b)),smooth=x=>{x=clamp(x,0,1);return x*x*(3-2*x)},norm=a=>((a%TAU)+TAU)%TAU;
 // alumnos.txt se mantiene fuera del HTML. Cada nueva lista tiene un historial separado.
 let fullNames=[], all=[], STORAGE='', selectedOrder=[], dataLoaded=false;
@@ -206,128 +208,145 @@ function fanfare(){if(!soundOn)return;const notes=[[523,.0,.13],[659,.13,.13],[7
 // Los deflectores permanecen fijos y las paredes de las casillas giran con el rotor.
 function rotorPosition(t,start,turns){
  const u=clamp(t/ROTOR_STOP_T,0,1);
- return start+turns*(1-(1-u)**3);
+ return start+turns*(1-(1-u)**2.2);
 }
 function rotorSpeed(t,turns){
+ if(t>=ROTOR_STOP_T)return 0;
  const u=clamp(t/ROTOR_STOP_T,0,1);
- return t>=ROTOR_STOP_T?0:3*turns*(1-u)**2/ROTOR_STOP_T;
+ return 2.2*turns/ROTOR_STOP_T*(1-u)**1.2;
 }
 function deltaAngle(a,b){return Math.atan2(Math.sin(a-b),Math.cos(a-b));}
+// Bola y rotor no comparten referencia: las colisiones se calculan en el mundo.
+// En las zonas inclinadas la gravedad la hace descender radialmente; el momento
+// angular sigue evolucionando con el rozamiento y con los choques oblicuos.
+// Ningún alumno se escoge antes de calcular la trayectoria.
 function buildPhysicalSpin(names){
  const count=names.length,step=TAU/count;
- const rotorStart=norm(rotation),totalTurn=TAU*(2.85+rand()*.52);
- const trackStart=-.57+(rand()-.5)*.12;
- let theta=trackStart,r=459,omega=-(14.4+rand()*2.1),vr=0;
- let z=0,vz=0,deflectUntil=0,fretUntil=0,events=0;
- const trackFriction=.34+rand()*.09,bowlFriction=.46+rand()*.15;
- const states=[];
- const nsteps=Math.round(WIN_T/SIM_DT);
- let settledPocket=-1;
+ // Giro lento de los alojamientos, opuesto al de la bola.
+ const rotorStart=norm(rotation),totalTurn=TAU*(1.07+rand()*.45);
+ const trackStart=rand()*TAU;
+ let theta=trackStart,r=459,omega=-(8.8+rand()*1.4),vr=0;
+ let z=0,vz=0,lastDiamond=-1,lastFret=-1,impacts=0;
+ let deflectUntil=0,fretUntil=0,stage='release',stopped=false,settleTime=0;
+ const states=[],dt=SIM_DT,nsteps=Math.round(WIN_T/dt);
+ const trackDamping=.48+rand()*.09,bowlDamping=.20+rand()*.08;
  let lastContact='';
+ // rebote sobre la normal de impacto de un diamante fijo, en unidades px/s
+ function diamondCollision(centerAngle,t){
+   const cx=Math.cos(centerAngle)*424,cy=Math.sin(centerAngle)*424;
+   const x=Math.cos(theta)*r,y=Math.sin(theta)*r;
+   let dx=x-cx,dy=y-cy,d=Math.hypot(dx,dy);
+   if(d>=21.0||d<.0001||t<deflectUntil)return false;
+   const nx=dx/d,ny=dy/d;
+   const erx=Math.cos(theta),ery=Math.sin(theta),etx=-ery,ety=erx;
+   const normalRad=nx*erx+ny*ery,normalTan=nx*etx+ny*ety;
+   const vRad=vr,vTan=r*omega;
+   const towards=vRad*normalRad+vTan*normalTan;
+   if(towards>=-8)return false;
+   const restitution=.56+rand()*.15;
+   // Devuelve una velocidad radial y otra tangencial, sin forzar dirección.
+   const impulse=-(1+restitution)*towards;
+   vr=clamp(vr+impulse*normalRad,-185,155);
+   omega=clamp(omega+(impulse*normalTan)/r,-5.8,4.4);
+   // Corrección exclusivamente de penetración del sólido, no de trayectoria.
+   r+=Math.max(0,21.2-d)*normalRad;
+   theta+=Math.max(0,21.2-d)*normalTan/Math.max(1,r);
+   // La bola salta en altura. En vista cenital varía su sombra.
+   vz=Math.max(50,Math.min(95,Math.abs(towards)*.04));
+   deflectUntil=t+.11;
+   lastContact='diamond';impacts++;
+   return true;
+ }
  for(let k=0;k<=nsteps;k++){
-  const t=k*SIM_DT;
-  const rotor=rotorPosition(t,rotorStart,totalTurn),rw=rotorSpeed(t,totalTurn);
-  let stage=t<RELEASE_T?'release':t<RELEASE_T+TRACK_T?'track':
-      t<RELEASE_T+TRACK_T+1.65?'fall':'bounce';
+  const t=k*dt,rotor=rotorPosition(t,rotorStart,totalTurn),rw=rotorSpeed(t,totalTurn);
   let impact=false;
-  if(t>=RELEASE_T&&t<RELEASE_T+TRACK_T){
-   omega*=Math.exp(-trackFriction*SIM_DT);
-   theta+=omega*SIM_DT;
+  if(t<RELEASE_T){stage='release';}
+  else if(t<RELEASE_T+TRACK_T){
+   stage='track';
+   omega*=Math.exp(-trackDamping*dt);
+   theta+=omega*dt;
    r=459;vr=0;
-  }else if(t>=RELEASE_T+TRACK_T){
-   if(t-SIM_DT<RELEASE_T+TRACK_T){vr=-49;z=0;vz=0;}
+  }else{
    const elapsed=t-(RELEASE_T+TRACK_T);
-   const drag=bowlFriction+(elapsed>3.2?.35:0)+(elapsed>5.5?.70:0);
-   omega*=Math.exp(-drag*SIM_DT);
-   // El rozamiento de las piezas móviles transmite algo de velocidad al rotor.
-   if(r<416)omega+=(rw-omega)*(elapsed>5.2?.68:.12)*SIM_DT;
-   // El descenso se acentúa cuando la velocidad tangencial ya no sostiene a la bola.
-   const slopeAccel=r>414?(-48-(elapsed>4.7?68:0)):-32;
-   const outward=.00017*r*omega*omega;
-   const spring=r<409 && elapsed>3.3 ? -(r-403)*7.5 : 0;
-   const radialDamp=r<416?2.7:0.40;
-   vr+=(slopeAccel+outward+spring-radialDamp*vr)*SIM_DT;
-   r+=vr*SIM_DT;
-   theta+=omega*SIM_DT;
-   // Reflejo contra el borde superior de la cubeta y la base de la corona.
-   if(r>460){r=460;vr=-Math.abs(vr)*.53;impact=true;events++;}
-   if(r<392){r=392;vr=Math.abs(vr)*.48;omega*=.88;impact=true;events++;}
-   // Choques con los ocho diamantes estacionarios.
-   if(t>deflectUntil&&r>=413&&r<=437&&elapsed<4.9){
-    for(let j=0;j<8;j++){
-     const da=deltaAngle(theta,j*TAU/8+.14);
-     const tangentialDist=Math.abs(da*r);
-     const radialDist=Math.abs(r-424);
-     if(tangentialDist<12.5&&radialDist<13){
-      // Impacto oblicuo, rebote radial y dispersión tangencial.
-      vr=36+rand()*70;
-      const before=omega;
-      omega=omega*(.53+.23*rand())+(rand()-.5)*5.3;
-      // Algunas colisiones invierten de verdad el avance de la bola.
-      if(rand()<.27)omega=-before*(.24+.29*rand());
-      theta+=Math.sign(omega||1)*.007;
-      deflectUntil=t+.20;
-      vz=120+rand()*95;
-      impact=true;events++;
-      lastContact='diamond';
-      break;
+   if(t-dt<RELEASE_T+TRACK_T){vr=-17;z=0;vz=0;}
+   stage=r>442?'fall':(r>416?'scatter':'bounce');
+   // Frenada gradual, SIN imponer una posición angular final.
+   let drag=bowlDamping;
+   if(r<442)drag+=.12;
+   if(r<417)drag+=.16;
+   if(t>6.9)drag+=.30;
+   if(t>8.0)drag+=.50;
+   omega*=Math.exp(-drag*dt);
+   // Modesta conservación de momento angular cuando cambia el radio.
+   omega-=.40*(2*vr*omega/Math.max(r,380))*dt;
+   // Pendiente interior de la cubeta y reacción centrífuga reducida por escala.
+   // La zona de casillas tiene un fondo estable en torno al radio 402.
+   let radialAcceleration;
+   if(r>437)radialAcceleration=-165+.0004*r*omega*omega-1.15*vr;
+   else if(r>417)radialAcceleration=-165+.0003*r*omega*omega-.95*vr;
+   else radialAcceleration=-(r-402)*28-5.6*vr+.00016*r*omega*omega;
+   vr+=radialAcceleration*dt;
+   r+=vr*dt;
+   theta+=omega*dt;
+   if(r>461){r=461;vr=-Math.abs(vr)*.41;impact=true;impacts++;}
+   if(r<389){r=389;vr=Math.abs(vr)*.52;omega*=.82;impact=true;impacts++;}
+   // Diamantes fijos: la bola puede salir hacia fuera o cambiar de sentido.
+   if(r>399&&r<446&&t>deflectUntil){
+     for(let j=0;j<8;j++){
+       const angle=j*TAU/8+.14;
+       if(Math.abs(deltaAngle(theta,angle))*r>26)continue;
+       if(diamondCollision(angle,t)){impact=true;break;}
      }
-    }
    }
-   // Separadores entre alojamientos de la rueda móvil.
-   if(r<=416&&r>=389&&t>fretUntil&&t<9.18&&elapsed>.45){
-    const rel=norm(theta-rotor-base);
-    const phaseInPocket=rel%step;
-    const clearance=Math.min(phaseInPocket,step-phaseInPocket)*r;
-    const relativeOmega=omega-rw;
-    if(clearance<8.5&&Math.abs(relativeOmega)>.27){
-     // La componente tangencial rebota contra el separador.
-     omega=rw-relativeOmega*(.28+.36*rand());
-     // El choque eleva la bola, que puede volver a la pista inclinada.
-     vr=Math.max(vr,23+rand()*52);
-     theta+=(phaseInPocket<step/2?1:-1)*(.010+rand()*.005);
-     fretUntil=t+(.13+rand()*.07);
-     vz=60+rand()*110;
-     impact=true;events++;
-     lastContact='fret';
-    }
+   // Aristas entre casillas móviles (solo en el anillo interno).
+   if(r<419&&r>389&&t>fretUntil&&t<WIN_T-.65){
+     const rel=norm(theta-rotor-base),inside=rel%step;
+     const gap=Math.min(inside,step-inside)*r;
+     const relOmega=omega-rw;
+     // Detecta paso real a través de una pared de bolsillo.
+     if(gap<12.2&&Math.abs(relOmega)*r>32){
+       const bounce=.43+rand()*.23;
+       omega=rw-relOmega*bounce;
+       // Impacto contra metal: levanta la bola y la devuelve a la parte abierta.
+       // La magnitud es proporcional a la energía normal del choque.
+       const speed=Math.abs(relOmega)*r;
+       vr=Math.max(vr,Math.min(125,38+speed*.13));
+       z=Math.max(z,2);vz=Math.max(vz,Math.min(90,33+speed*.08));
+       const sign=inside<step/2?1:-1;
+       theta+=sign*(12.3-gap)/r;
+       fretUntil=t+.055+rand()*.06;
+       impact=true;impacts++;lastContact='fret';
+     }
    }
-   // Pequeños rebotes verticales vistos desde arriba: al perder energía se extinguen.
-   vz-=470*SIM_DT;
-   z+=vz*SIM_DT;
-   if(z<0){z=0;if(vz < -34&&elapsed<6.3){vz=-vz*.25;}else vz=0;}
-   // Dentro de una casilla, el desnivel del fondo hace que ruede hacia su centro.
-   // Esta fuerza es LOCAL a la casilla actual: no atrae a una posición predeterminada.
-   if(t>8.65&&r<416){
-    const rel=norm(theta-rotor-base),local=rel%step,offset=local-step/2;
-    const relativeOmega=omega-rw;
-    omega+=(-10.0*offset-3.5*relativeOmega)*SIM_DT;
-    vr+=(-(r-403)*22-6*vr)*SIM_DT;
-    theta+=(-10.0*offset-3.5*relativeOmega)*SIM_DT*SIM_DT*.5;
+   // Altura: cada salto pierde energía por gravedad y restitución.
+   vz-=510*dt;z+=vz*dt;
+   if(z<0){z=0;vz=vz< -25? -vz*(t<7.5?.26:.16):0;}
+   // Fondos curvos: estabilización LOCAL en el hueco presente, no en un
+   // alumno predeterminado. Solo actúa si la bola tiene poca energía.
+   const rel=norm(theta-rotor-base),offset=rel%step-step/2;
+   const relOmega=omega-rw;
+   if(t>6.6&&r<411&&Math.abs(relOmega)<1.05&&Math.abs(vr)<48){
+     const well=t>8.4?14:5.5;
+     omega+=(-well*offset-(t>8.4?4.3:1.6)*relOmega)*dt;
+   }
+   if(t>8.5&&r<414){
+     // Mayor resistencia al final: la bola rueda unos instantes antes de parar.
+     omega=rw+(omega-rw)*Math.exp(-2.7*dt);
+     vr*=Math.exp(-2.0*dt);
    }
   }
   states.push({t,angle:theta,radius:r,z,rotation:rotor,impact,stage});
  }
- // El alumno se lee de la posición angular verdadera de la bola al final.
- const last=states[states.length-1];
- const position=norm(last.angle-last.rotation-base);
- const index=Math.min(count-1,Math.floor(position/step));
- // Ajuste LOCAL bajo la propia casilla, nunca un recorrido hacia el ganador elegido.
- // Se aplica solo en los últimos instantes y la corrección es inferior a media casilla.
- const center=last.rotation+base+(index+.5)*step;
- const error=deltaAngle(last.angle,center);
- const settleStart=9.95;
- for(const p of states){if(p.t>=settleStart){
-  const q=smooth((p.t-settleStart)/(WIN_T-settleStart));
-  p.angle-=error*q;
-  p.radius+=(403-p.radius)*q;
-  p.z*=(1-q);
-  p.stage='settle';
- }}
+ // Se lee la casilla realmente ocupada por la bola, SIN elegir ganador antes.
+ const last=states[states.length-1],relative=norm(last.angle-last.rotation-base);
+ const index=Math.min(count-1,Math.floor(relative/step));
+ // La trayectoria física también determina la posición final dentro de la casilla.
+ // No se recoloca ni desplaza la bola hacia un centro gráfico impuesto.
+ for(const p of states){if(p.t>8.9)p.stage='settle';}
  const finish=states[states.length-1];
  return {states,index,begin:performance.now(),duration:WIN_T,
-  rotationEnd:finish.rotation,angleEnd:finish.angle,impacts:events,
-  initial:trackStart,scatterTurns:Math.abs((theta-trackStart)/TAU),contact:lastContact};
+   rotationEnd:finish.rotation,angleEnd:finish.angle,impacts,
+   initial:trackStart,scatterTurns:Math.abs((theta-trackStart)/TAU),contact:lastContact};
 }
 function start(){
  if(animation||!dataLoaded||!available.length)return;
@@ -378,7 +397,7 @@ let hub=ctx.createRadialGradient(-20,-30,5,0,0,74);hub.addColorStop(0,'#fff8d0')
 // ball tracks: bright glint, motion blur and rolling sphere
 if(ballVisible){const bx=Math.cos(ballAngle)*ballRadius,by=Math.sin(ballAngle)*ballRadius;
 if(phase==='track'||phase==='fall'){ctx.strokeStyle='#dcefff25';ctx.lineWidth=7;ctx.beginPath();ctx.arc(0,0,ballRadius,ballAngle+.045,ballAngle+.21);ctx.stroke()}
-ctx.fillStyle='#0008';ctx.beginPath();ctx.ellipse(bx+5+ballLift*.32,by+8+ballLift*.35,13+ballLift*.10,9+ballLift*.05,0,0,TAU);ctx.fill();let gb=ctx.createRadialGradient(bx-5-ballLift*.06,by-6-ballLift*.08,0,bx,by,14);gb.addColorStop(0,'#ffffff');gb.addColorStop(.26,'#f7ffff');gb.addColorStop(.6,'#aab5bc');gb.addColorStop(1,'#3e4653');ctx.fillStyle=gb;ctx.beginPath();ctx.arc(bx,by,12.6,0,TAU);ctx.fill();ctx.strokeStyle='#fefefeaa';ctx.lineWidth=1;ctx.stroke();}
+ctx.fillStyle='#0007';ctx.beginPath();ctx.ellipse(bx+5+ballLift*.22,by+8+ballLift*.20,13+ballLift*.06,9+ballLift*.04,0,0,TAU);ctx.fill();const drawnY=by-ballLift*.25;let gb=ctx.createRadialGradient(bx-5,drawnY-6,0,bx,drawnY,14);gb.addColorStop(0,'#ffffff');gb.addColorStop(.26,'#f7ffff');gb.addColorStop(.6,'#aab5bc');gb.addColorStop(1,'#3e4653');ctx.fillStyle=gb;ctx.beginPath();ctx.arc(bx,drawnY,12.6,0,TAU);ctx.fill();ctx.strokeStyle='#fefefeaa';ctx.lineWidth=1;ctx.stroke();}
 if(animation)hand((performance.now()-animation.begin)/1000);
 ctx.restore();}
 
@@ -386,7 +405,7 @@ function endSpin(){
  if(!animation)return;
  const a=animation,index=a.index,picked=wheelNames[index];
  rotation=a.rotationEnd;ballAngle=a.angleEnd;ballRadius=403;ballVisible=true;highlight=index;
- settled={index,rotationEnd:rotation,ballOffset:base+(index+.5)*TAU/wheelNames.length};
+ settled={index,rotationEnd:rotation,ballOffset:a.angleEnd-rotation};
  animation=null;phase='settled';selectedOrder.push(picked.full);persist();
  $('winner').textContent=picked.full;
  $('subresult').textContent='✓ Seleccionado/a · Marcado/a en la lista · Excluido/a del siguiente sorteo';
@@ -405,8 +424,9 @@ function frame(now){
   ballVisible=elapsed>=RELEASE_T;phase=p.stage;
   if(phase==='release')$('status').textContent='Preparando el lanzamiento…';
   else if(phase==='track')$('status').textContent='La bola circula en sentido contrario por el carril exterior…';
-  else if(phase==='fall')$('status').textContent='Pierde velocidad, desciende por el plano inclinado…';
-  else if(phase==='bounce')$('status').textContent=elapsed>ROTOR_STOP_T?'Rotor detenido; la bola sigue rebotando libremente…':'Impactos contra diamantes y separadores: ¡todavía puede caer en cualquiera!';
+  else if(phase==='fall')$('status').textContent='La bola abandona el carril exterior y comienza a descender…';
+  else if(phase==='scatter')$('status').textContent='La bola recorre el anillo inclinado y choca contra los deflectores…';
+  else if(phase==='bounce')$('status').textContent=elapsed>ROTOR_STOP_T?'Rotor detenido; la bola sigue rebotando libremente…':'La bola rebota y cruza alojamientos: ¡todavía puede tocarle a cualquiera!';
   else $('status').textContent='La bola está encontrando su alojamiento…';
   if(p.impact&&idx!==lastTick){lastTick=idx;tone(330+rand()*430,.035,'triangle',.016);}
   if(elapsed>=a.duration)endSpin();
