@@ -1,0 +1,285 @@
+<!doctype html>
+<!--
+ RULETA ACADÉMICA UGR · HTML + TXT INDEPENDIENTE PARA GITHUB PAGES
+ INSTALACIÓN: Sube index.html y alumnos.txt JUNTOS al mismo directorio. TODOS los gráficos se dibujan por código
+ en el canvas. Los estilos y sonidos están incluidos. Los nombres viven en alumnos.txt.
+ PARA CAMBIAR ALUMNOS: sustituye el contenido de alumnos.txt (un alumno por línea).
+ MOODLE/PRADO: publicar los archivos en una URL HTTPS, por ejemplo GitHub Pages,
+ y enlazar la página desde PRADO. Para proteger los nombres, publicar solo
+ index.html y cargar alumnos.txt desde el ordenador del profesor.
+ Pegar JavaScript en el editor visual de Moodle normalmente NO funciona.
+ PRIVACIDAD: el historial de casillas se guarda SOLO en el navegador actual.
+ IMPORTANTE: si subes alumnos.txt a un GitHub Pages público, sus nombres serán públicos.
+-->
+
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ruleta de participación · Diseños Experimentales · UGR</title>
+<style>
+:root{--oro:#edca88;--vino:#721c35;--blanco:#f9f5ed}*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:var(--blanco);background:radial-gradient(ellipse at 50% 0%,#4a2540 0%,#192333 48%,#0b131b 95%)}
+body{background-attachment:fixed}.page{max-width:1580px;padding:16px 20px 30px;margin:auto}
+.heading{text-align:center;padding-bottom:16px}.pre{letter-spacing:3px;color:#efce98;font-weight:800;font-size:12px}
+.heading h1{font-family:Georgia,serif;letter-spacing:1px;font-size:clamp(30px,3.25vw,51px);line-height:1.15;margin:6px 0 8px;color:#ffe4b0;text-shadow:0 0 30px #e9b56044}
+.program{font-size:clamp(13px,1.4vw,17px);color:#f1e7d9;margin:3px 0}.coursemeta{font-size:13px;color:#cfcee0;margin:7px 0}.teacher{font-weight:700;color:#f3ce9a;font-size:14px}
+.layout{display:grid;grid-template-columns:minmax(0,955px) minmax(295px,355px);gap:23px;align-items:start;justify-content:center}
+.table-area{border:9px ridge #c79b60;border-radius:24px;background:radial-gradient(circle at 50% 47%,#194d46 0%,#0a302c 70%);box-shadow:0 0 0 3px #432515,inset 0 0 25px #0006,0 22px 50px #0008;padding:11px}
+.wheel-wrap{width:min(100%,930px);aspect-ratio:1;margin:auto}#wheel{width:100%;height:100%;display:block}
+.result{background:linear-gradient(115deg,#351c34,#152a32);border:2px solid #b9935f;border-radius:14px;text-align:center;padding:14px 12px 17px;margin-top:8px;box-shadow:inset 0 0 20px #0008}
+.result small{letter-spacing:2px;color:#edcc94;font-size:11px;font-weight:700}.result strong{display:block;margin:6px auto 2px;color:#fff0b8;font-size:clamp(27px,3.2vw,51px);line-height:1.14;overflow-wrap:anywhere;min-height:44px;text-shadow:0 0 22px #eed27255}.detail{font-size:13px;color:#c4d9d8}
+.actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:13px}.btn{cursor:pointer;appearance:none;font-family:inherit;font-weight:900;border:1px solid #ffe9c2;border-radius:10px;padding:13px 22px;font-size:16px;color:#38230d;background:linear-gradient(#fff5d0,#efba65 65%,#b97930);box-shadow:0 4px 0 #764918,0 7px 15px #0005}.btn:disabled{opacity:.48;cursor:not-allowed}.btn:hover:not(:disabled){filter:brightness(1.08)}.btn.secondary{font-size:12px;padding:11px 12px;background:#283844;color:#f2e0be;border-color:#a88f69;box-shadow:0 3px 0 #0d1821}
+.status{text-align:center;min-height:20px;font-size:13px;color:#e4d5bc;margin:13px 3px 4px}
+.side{display:grid;gap:14px}.panel{border:1px solid #8f7893;border-radius:14px;padding:16px;background:linear-gradient(145deg,#2a283c,#12272f);box-shadow:inset 0 0 18px #0005}.stats{display:flex;justify-content:space-around;padding-bottom:15px;border-bottom:1px solid #ffffff25}.stats div{text-align:center}.stats b{font-size:35px;color:#ffdda3;display:block}.stats span{color:#c5d4d8;font-size:12px}
+.panel h2{font-size:18px;color:#ffdaa0;margin:12px 0 9px}.panel p{font-size:12px;line-height:1.55;color:#d1d4dd;margin:0 0 12px}
+.names{display:grid;gap:2px;max-height:540px;overflow:auto;padding-right:6px}
+.person{display:flex;align-items:center;gap:8px;font-size:12.5px;line-height:1.28;border-bottom:1px solid #ffffff14;padding:6px 4px;cursor:pointer;min-width:0}.person input{height:17px;width:17px;flex-shrink:0;accent-color:#e3b463;cursor:pointer}.person span{display:block;overflow-wrap:anywhere}.person.gone span{text-decoration:line-through;color:#9da9ad}.person:hover{background:#ffffff13;border-radius:5px}.person:focus-within{outline:1px solid #e1b879}
+.tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:13px}.info{font-size:12px;color:#ccd0d7;line-height:1.5;text-align:center;margin:14px auto;max-width:1050px}.foot{text-align:center;color:#9daeb8;font-size:11px}.winnerflash{animation:shine .9s ease}@keyframes shine{from{box-shadow:0 0 42px #ffe4a0}to{box-shadow:inset 0 0 20px #0008}}
+.instruction{padding:12px;border-radius:10px;background:#191d30;border:1px solid #786682;color:#ebdecd;font-size:12px}.instruction b{color:#ffdba1}
+.fs .page{max-width:none;padding:5px}.fs .layout{display:block}.fs .side,.fs .info,.fs .foot,.fs .coursemeta{display:none}.fs .heading{padding-bottom:4px}.fs .heading h1{font-size:24px;margin:0}.fs .program{font-size:12px}.fs .table-area{max-width:min(98vw,1100px);margin:auto;padding:3px}.fs .wheel-wrap{width:min(79vh,93vw);max-width:975px}.fs .result{padding:7px}.fs .actions{margin-top:6px}
+@media(max-width:1080px){.layout{grid-template-columns:1fr}.table-area,.side{max-width:930px;width:100%;margin:auto}.names{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px;max-height:300px}.page{padding:10px}.table-area{border-width:6px}.result strong{font-size:clamp(28px,5vw,51px)}}
+@media(max-width:560px){.page{padding:6px}.heading h1{font-size:30px}.program{font-size:12px}.teacher{font-size:12px}.coursemeta{font-size:11px}.table-area{padding:2px}.btn{font-size:13px;padding:11px 12px}.btn.secondary{font-size:11px;padding:10px}.names{grid-template-columns:1fr}.result strong{font-size:27px}}
+
+/* ===== DISEÑO PANORÁMICO 16:9 · PROYECCIÓN EN AULA ===== */
+.heading{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);align-items:center;gap:14px;text-align:left;padding:4px 0 11px}
+.heading .pre{font-size:clamp(9px,.8vw,12px)}
+.heading h1{white-space:nowrap;font-size:clamp(22px,2.65vw,47px);margin:2px 0 0}
+.heading .academic{text-align:right}
+.heading .academic .program{font-size:clamp(12px,1.05vw,17px)}
+.heading .academic .coursemeta{font-size:clamp(10px,.85vw,13px)}
+.heading .academic .teacher{font-size:clamp(11px,.95vw,15px)}
+@media(max-width:899px){.heading{display:block;text-align:center}.heading .academic{text-align:center}.heading h1{white-space:normal}}
+
+html,body{min-height:100%;}
+.page{width:100%;max-width:1920px;margin:auto;padding:clamp(6px,1.2vw,18px) clamp(8px,1.4vw,22px) 16px;}
+.heading{padding-bottom:clamp(4px,1vh,11px)}
+.heading h1{font-size:clamp(23px,2.65vw,42px);margin:3px 0 4px}
+.heading .pre{font-size:clamp(10px,.86vw,13px)}
+.heading .program{font-size:clamp(12px,1.12vw,16px);margin:2px 0}
+.heading .coursemeta{font-size:clamp(10px,.92vw,13px);margin:2px 0}
+.heading .teacher{font-size:clamp(12px,1vw,15px)}
+.layout{grid-template-columns:minmax(0,1.16fr) minmax(0,.84fr);gap:clamp(8px,1.25vw,19px);align-items:start;width:100%}
+.table-area{border-width:clamp(4px,.55vw,8px);padding:clamp(3px,.4vw,7px)}
+.wheel-wrap{width:min(100%,calc(100dvh - 330px),760px);max-width:760px;position:relative;aspect-ratio:1;margin:auto}
+#wheel{display:block;width:100%;height:100%}
+.center-hit{position:absolute;left:32%;top:32%;width:36%;height:36%;border-radius:50%;background:transparent;border:2px solid transparent;cursor:pointer;touch-action:manipulation;z-index:2}
+.center-hit:hover:not(:disabled){border-color:#f6dd9288;box-shadow:0 0 21px #f4d77b66,inset 0 0 25px #ffe3ad15}
+.center-hit:focus-visible{outline:4px solid #fff0a4;outline-offset:2px}
+.center-hit:disabled{cursor:progress}
+.result{padding:clamp(6px,.7vh,11px) 10px;margin-top:5px}
+.result strong{font-size:clamp(25px,2.6vw,48px);min-height:30px;line-height:1.1}
+.actions{margin-top:7px;gap:8px}
+.actions .btn{padding:9px 13px;font-size:clamp(12px,.95vw,16px)}
+.actions .btn.secondary{padding:9px 10px;font-size:clamp(10px,.76vw,13px)}
+.status{margin:8px 2px 1px;font-size:12px;min-height:14px}
+.side{gap:9px}.panel{padding:clamp(9px,1vw,15px)}
+.panel .stats{padding-bottom:8px}.panel .stats b{font-size:clamp(24px,2.3vw,36px)}
+.panel h2{font-size:clamp(14px,1.15vw,18px);margin:9px 0 5px}
+.panel p{font-size:clamp(10px,.75vw,12px);margin-bottom:7px}
+.names{grid-template-columns:repeat(2,minmax(0,1fr));gap:1px 7px;max-height:calc(100dvh - 400px);overflow:auto;padding-right:4px}
+.person{font-size:clamp(10px,.78vw,13px);padding:4px 3px;gap:5px;min-height:26px}
+.person input{width:17px;height:17px}
+.tools{margin-top:8px}.tools .btn{font-size:11px;padding:9px 9px}
+.instruction{font-size:11px;padding:8px 10px}
+.info{font-size:11px;margin:9px auto 3px}.foot{font-size:10px}
+@media (min-width:1600px){.names{grid-template-columns:repeat(3,minmax(0,1fr));max-height:calc(100dvh - 280px)}}
+@media (min-width:900px){.layout{display:grid;grid-template-columns:minmax(0,1.16fr) minmax(0,.84fr)}.table-area,.side{max-width:none}.names{max-height:calc(100dvh - 400px)}.wheel-wrap{width:min(100%,calc(100dvh - 330px),760px)}}
+@media(max-width:899px){.layout{display:grid;grid-template-columns:1fr}.wheel-wrap{width:min(100%,calc(100dvh - 250px),720px)}.table-area,.side{max-width:760px;margin:auto;width:100%}.names{max-height:300px}.page{padding:9px}}
+@media(max-width:560px){.wheel-wrap{width:min(100%,calc(100dvh - 250px),96vw)}.names{grid-template-columns:1fr}.heading h1{font-size:25px}}
+@media (min-width:900px) and (orientation:landscape){.info,.foot{display:none}}
+@media (min-width:900px) and (max-height:850px){.instruction{display:none}}
+/* El modo proyector mantiene visible el panel de alumnos y sus casillas */
+.fs .page{max-width:1920px;padding:4px 9px}
+.fs .layout{display:grid;grid-template-columns:minmax(0,1.17fr) minmax(0,.83fr)}
+.fs .side{display:grid}
+.fs .heading{padding-bottom:4px}
+.fs .heading h1{font-size:clamp(22px,2.2vw,34px);margin:3px 0}
+.fs .program{font-size:clamp(11px,.95vw,14px)}
+.fs .coursemeta{display:block;font-size:11px}
+.fs .table-area{max-width:none;padding:4px}
+.fs .wheel-wrap{width:min(100%,calc(100dvh - 330px),780px);max-width:860px}
+.fs .result{padding:5px 8px}
+.fs .actions{margin-top:6px}
+.fs .info,.fs .foot,.fs .instruction{display:none}
+.fs .names{max-height:calc(100dvh - 180px)}
+@media(max-width:899px){.fs .layout{grid-template-columns:1fr}.fs .wheel-wrap{width:min(100%,calc(100dvh - 210px),720px)}.fs .side{display:none}}
+
+@media(min-width:900px) and (min-height:900px){.wheel-wrap{width:min(100%,calc(100dvh - 355px),760px)}}
+/* Cabecera docente condensada: deja espacio vertical para el resultado */
+@media(min-width:900px){.heading{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);align-items:center;gap:14px;text-align:left;padding:4px 0 10px}.heading .academic{text-align:right}.heading h1{white-space:nowrap;font-size:clamp(22px,2.65vw,47px);margin:2px 0 0}.heading .pre{font-size:clamp(9px,.8vw,12px)}}
+</style>
+</head>
+<body>
+<!-- Los alumnos se cargan desde alumnos.txt, separado del código HTML. -->
+<div class="page">
+<header class="heading"><div class="branding"><div class="pre">UNIVERSIDAD DE GRANADA · CURSO 2026/2027</div><h1>RULETA DE PARTICIPACIÓN</h1></div><div class="academic"><div class="program">Máster Universitario en Investigación en Actividad Física y Deporte</div><div class="coursemeta">Diseños Experimentales · Módulo Fundamentos de la Investigación · 3 ECTS</div><div class="teacher">Profesor: Manuel Alfonso Martínez Marín</div></div></header>
+<div class="layout"><main class="table-area"><div class="wheel-wrap"><canvas id="wheel" width="1000" height="1000" aria-label="Ruleta de estudiantes con rotación y rebotes de la bola"></canvas><button type="button" id="centerstart" class="center-hit" aria-label="Iniciar el sorteo tocando el eje central de la ruleta" title="Toca el eje para comenzar otro sorteo"></button></div>
+<section class="result" id="result"><small>ESTUDIANTE SELECCIONADO/A</small><strong id="winner" aria-live="polite">—</strong><div class="detail" id="subresult">Preparado para comenzar</div></section>
+<div class="actions"><button id="start" class="btn" disabled>▶ INICIAR SORTEO</button><button id="loadtxt" class="btn secondary" title="Seleccionar archivo local de alumnos">📄 CARGAR TXT</button><input type="file" id="rosterFile" accept=".txt,text/plain" hidden><button id="fullscreen" class="btn secondary">⛶ MODO PROYECTOR</button><button id="mute" class="btn secondary">🔊 SONIDO</button></div>
+<p class="status" id="status" aria-live="polite">Cargando alumnos.txt…</p></main>
+<aside class="side"><section class="panel"><div class="stats"><div><b id="remaining">0</b><span>Pendientes</span></div><div><b id="selected">0</b><span>Seleccionados</span></div></div><h2>Listado completo · selección manual</h2><p>Cada estudiante seleccionado aparece con su casilla marcada. Puedes hacer clic en cualquier casilla para excluirlo o reincorporarlo al siguiente sorteo.</p><div class="names" id="list"></div><div class="tools"><button id="undo" class="btn secondary">↶ DESHACER ÚLTIMO</button><button id="reset" class="btn secondary">↻ REINCORPORAR A TODOS</button></div></section><section class="instruction"><b>Lista independiente:</b> edita <b>alumnos.txt</b> (un estudiante por línea, <b>APELLIDOS, NOMBRE</b>). Si está junto a index.html en la web, se carga automáticamente. También puedes seleccionarlo con <b>CARGAR TXT</b> sin publicarlo.</section></aside></div>
+<p class="info">Sorteo aleatorio, sin repeticiones y con seguimiento editable. La bola recorre el carril exterior, cae al perder velocidad y rebota de forma irregular entre distintos alojamientos antes de detenerse. El nombre se muestra en grande y su selección queda guardada en este navegador.</p>
+<p class="foot">ESPACIO o clic en el eje: iniciar · ESC: cerrar modo proyector · Sin imágenes ni servicios externos · Los estudiantes están en alumnos.txt</p></div>
+<script>
+'use strict';
+const TAU=Math.PI*2,base=-Math.PI/2,$=id=>document.getElementById(id),canvas=$('wheel'),ctx=canvas.getContext('2d');
+// DURACIONES DE LA SECUENCIA COMPLETA: aproximadamente 9 segundos.
+const RELEASE_T=1.0,ROLL_T=4.35,FALL_T=1.15,SETTLE_T=2.30,WIN_T=RELEASE_T+ROLL_T+FALL_T+SETTLE_T;
+const clamp=(v,a,b)=>Math.max(a,Math.min(v,b)),smooth=x=>{x=clamp(x,0,1);return x*x*(3-2*x)},norm=a=>((a%TAU)+TAU)%TAU;
+// alumnos.txt se mantiene fuera del HTML. Cada nueva lista tiene un historial separado.
+let fullNames=[], all=[], STORAGE='', selectedOrder=[], dataLoaded=false;
+function abbrev(s){const [surname,given='']=s.split(',').map(x=>x.trim()),parts=surname.split(/\s+/),fn=given.split(/\s+/);
+ return parts[0]+(parts.length>1?' '+parts[1][0]+'.':'')+' · '+fn[0]+(fn.length>1?' '+fn.slice(1).map(x=>x[0]+'.').join(' '):'');}
+function loadRoster(text,origin){
+ const lines=String(text).replace(/^\uFEFF/,'').split(/\r?\n/).map(s=>s.trim()).filter(s=>s&&!s.startsWith('#'));
+ const invalid=lines.filter(s=>!s.includes(',')||!s.split(',')[0].trim()||!s.split(',').slice(1).join(',').trim());
+ if(invalid.length){$('status').textContent='Error en alumnos.txt: usa una línea por alumno en formato APELLIDOS, NOMBRE.';return false;}
+ const list=[...new Set(lines)].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+ if(!list.length){$('status').textContent='alumnos.txt está vacío; selecciona un archivo con nombres.';return false;}
+ if(animation)return false;
+ fullNames=list;all=list.map((full,id)=>({id,full,short:abbrev(full)}));
+ const hash=list.join('\n').split('').reduce((h,c)=>Math.imul(h^c.charCodeAt(0),16777619)>>>0,2166136261);
+ STORAGE='RUEDA_ACADEMICA_UGR_SELECTION_V4_'+hash;selectedOrder=[];
+ try{const saved=JSON.parse(localStorage.getItem(STORAGE));if(Array.isArray(saved))selectedOrder=[...new Set(saved.filter(s=>list.includes(s)))];}catch(e){}
+ dataLoaded=true;sync();clearBall();$('winner').textContent='—';$('subresult').textContent=list.length+' alumnos cargados';
+ $('status').textContent=list.length+' alumnos disponibles desde '+origin+'. Pulsa INICIAR o toca el eje central.';
+ return true;
+}
+let wheelNames=[],available=[],rotation=0,ballAngle=-.57,ballRadius=459,ballVisible=false,highlight=-1;
+let animation=null,settled=null,phase='idle',soundOn=true,audio=null,lastTick=-1,bounceKeyframes=[];
+const remaining=()=>all.filter(x=>!selectedOrder.includes(x.full));
+function persist(){try{if(STORAGE)localStorage.setItem(STORAGE,JSON.stringify(selectedOrder));}catch(e){}}
+function safe(s){return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');}
+function sync(){available=remaining();$('remaining').textContent=available.length;$('selected').textContent=selectedOrder.length;
+ $('list').innerHTML=all.map(x=>`<label class="person ${selectedOrder.includes(x.full)?'gone':''}"><input type="checkbox" data-i="${x.id}" ${selectedOrder.includes(x.full)?'checked':''} ${animation?'disabled':''}><span>${safe(x.full)}</span></label>`).join('');
+ $('start').disabled=!dataLoaded||!!animation||!available.length;$('centerstart').disabled=!dataLoaded||!!animation||!available.length;$('undo').disabled=!!animation||!selectedOrder.length;$('reset').disabled=!!animation||!selectedOrder.length;
+}
+function clearBall(){wheelNames=available.slice();highlight=-1;settled=null;ballVisible=false;phase='idle';}
+$('list').addEventListener('change',e=>{if(animation||e.target.type!=='checkbox')return;const item=all[Number(e.target.dataset.i)];if(!item)return;
+ if(e.target.checked){if(!selectedOrder.includes(item.full))selectedOrder.push(item.full)}else selectedOrder=selectedOrder.filter(x=>x!==item.full);
+ persist();sync();clearBall();$('winner').textContent='—';$('subresult').textContent='Lista modificada manualmente';$('status').textContent='Los cambios se aplicarán en el próximo sorteo';});
+function rand(){try{const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]/4294967296;}catch(e){return Math.random()}}
+function tone(f=450,duration=.07,type='sine',volume=.02){if(!soundOn)return;try{audio=audio||new (window.AudioContext||window.webkitAudioContext)();if(audio.state==='suspended')audio.resume();const o=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime;o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(volume,t);g.gain.exponentialRampToValueAtTime(.0001,t+duration);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+duration)}catch(e){}}
+function fanfare(){if(!soundOn)return;const notes=[[523,.0,.13],[659,.13,.13],[784,.26,.14],[1047,.43,.27]];for(const [f,delay,d] of notes){setTimeout(()=>tone(f,d,'triangle',.04),Math.round(delay*1000))}}
+// La selección se efectúa de forma uniforme entre quienes siguen disponibles.
+// El recorrido visual se construye después, con irregularidades independientes para cada giro.
+const a0=-.57,angularStart=11.4,angularDrag=1.70;
+function orbitDistance(s){return angularStart*s-.5*angularDrag*s*s}
+function endFallAngle(){const omega=angularStart-angularDrag*ROLL_T;return a0-orbitDistance(ROLL_T)-(omega*FALL_T-.48*FALL_T*FALL_T)}
+function makeBounceFrames(){let a=endFallAngle(),out=[{u:0,angle:a,radius:404}],count=11,travel=2.12+rand()*.55;
+ // Continuo descenso de velocidad angular, alternando saltos y rebotes hacia ambos lados.
+ for(let i=1;i<count;i++){let u=i/count;let wander=(rand()-.5)*(.82*(1-u)+.1);
+ let angle=a-travel*(1-(1-u)**1.4)+wander;
+ let radius=402+((rand()-.5)*19)*(1-u*.67);
+ out.push({u,angle,radius});}
+ out.push({u:1,angle:a-travel,radius:403});return out;}
+function ballTravel(s){if(s<=0)return{angle:a0,radius:459,stage:'release'};
+ if(s<=ROLL_T)return{angle:a0-orbitDistance(s),radius:459,stage:'track'};
+ let fall=s-ROLL_T,omega=angularStart-angularDrag*ROLL_T;
+ if(fall<=FALL_T){let q=fall/FALL_T;
+  return {angle:a0-orbitDistance(ROLL_T)-omega*fall+.48*fall*fall+.028*Math.sin(q*45)*Math.sin(Math.PI*q),radius:459-55*smooth(q)+9*Math.sin(q*30)*Math.sin(Math.PI*q)**2,stage:'fall'};}
+ let u=clamp((fall-FALL_T)/SETTLE_T,0,1),frames=bounceKeyframes;
+ for(let i=1;i<frames.length;i++){if(u<=frames[i].u){const l=frames[i-1],r=frames[i],z=(u-l.u)/(r.u-l.u);const k=smooth(z);return{angle:l.angle+(r.angle-l.angle)*k,radius:l.radius+(r.radius-l.radius)*k,stage:'bounce',impact:i};}}
+ return{...frames[frames.length-1],stage:'bounce',impact:frames.length-1};}
+function start(){if(animation||!dataLoaded||!available.length)return;
+ wheelNames=available.slice();highlight=-1;settled=null;ballVisible=false;ballAngle=a0;ballRadius=459;
+ bounceKeyframes=makeBounceFrames();const index=Math.floor(rand()*wheelNames.length),ballEnd=bounceKeyframes[bounceKeyframes.length-1].angle,step=TAU/wheelNames.length;
+ // Align the freely chosen student with the position at which the ball finishes.
+ const desired=ballEnd-base-(index+.5)*step;
+ const spinDistanceBase=desired-rotation;const turns=Math.round((32-spinDistanceBase)/TAU),distance=spinDistanceBase+turns*TAU;
+ const finalVelocity=.86,initialVelocity=2*distance/WIN_T-finalVelocity,accel=(initialVelocity-finalVelocity)/WIN_T;
+ animation={begin:performance.now(),index,ballEnd,rotationStart:rotation,rotationEnd:rotation+distance,initialVelocity,accel};phase='start';lastTick=-1;
+ $('winner').textContent='—';$('subresult').textContent='Sorteo en curso';$('status').textContent='El rotor comienza a girar…';sync();tone(460,.11,'triangle',.025);
+}
+function rectCircle(r,fill){ctx.beginPath();ctx.arc(0,0,r,0,TAU);ctx.fillStyle=fill;ctx.fill()}
+function ring(r,width,color){ctx.beginPath();ctx.arc(0,0,r,0,TAU);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke()}
+function hand(p){ // Illustration of hand moving into the upper-right perimeter and withdrawing after release.
+if(p<.35||p>1.42)return;const show=smooth((p-.35)/.35),hide=smooth((p-1.1)/.32),slide=show*(1-hide);
+ctx.save();ctx.translate(438+245*(1-slide),-245+75*(1-slide));ctx.rotate(-.38);ctx.shadowColor='#000b';ctx.shadowBlur=12;
+const skin=ctx.createLinearGradient(-30,-90,100,60);skin.addColorStop(0,'#fff0cd');skin.addColorStop(.45,'#c9926d');skin.addColorStop(1,'#895338');
+ctx.fillStyle='#f6f3e8';ctx.beginPath();ctx.moveTo(80,20);ctx.lineTo(152,10);ctx.lineTo(152,86);ctx.lineTo(86,80);ctx.closePath();ctx.fill();
+ctx.fillStyle=skin;ctx.beginPath();ctx.moveTo(155,27);ctx.bezierCurveTo(109,22,84,11,65,-6);ctx.bezierCurveTo(45,-25,20,-41,0,-46);ctx.bezierCurveTo(-12,-48,-18,-38,-8,-29);ctx.lineTo(40,8);ctx.bezierCurveTo(0,0,-25,-3,-45,-13);ctx.bezierCurveTo(-59,-19,-64,-4,-48,4);ctx.lineTo(24,42);ctx.bezierCurveTo(2,30,-15,22,-30,16);ctx.bezierCurveTo(-43,10,-49,24,-36,30);ctx.lineTo(42,75);ctx.lineTo(154,76);ctx.closePath();ctx.fill();
+ctx.shadowBlur=0;ctx.restore();}
+function drawWheel(){ctx.clearRect(0,0,1000,1000);ctx.save();ctx.translate(500,500);
+// Deep mahogany rim and golden metal details
+let wood=ctx.createRadialGradient(-140,-170,180,0,0,503);wood.addColorStop(0,'#99612c');wood.addColorStop(.58,'#673614');wood.addColorStop(.9,'#311607');wood.addColorStop(1,'#130906');rectCircle(498,wood);ring(493,7,'#ecb963');ring(485,4,'#3a230e');
+for(let i=0;i<60;i++){let a=i*TAU/60,flash=(performance.now()/380+i)%9<2;ctx.beginPath();ctx.arc(Math.cos(a)*478,Math.sin(a)*478,3.5,0,TAU);ctx.fillStyle=flash?'#fff7c5':'#cba266';ctx.shadowBlur=flash?9:0;ctx.shadowColor='#ffe4a1';ctx.fill()}ctx.shadowBlur=0;
+let steel=ctx.createRadialGradient(-110,-110,80,0,0,472);steel.addColorStop(0,'#20352d');steel.addColorStop(.70,'#172523');steel.addColorStop(.87,'#96938b');steel.addColorStop(.91,'#111c1b');steel.addColorStop(.965,'#c6c3ab');steel.addColorStop(1,'#40372d');rectCircle(468,steel);
+// stationary ivory/steel race: where roulette balls orbit before dropping
+ring(455,22,'#414c47');ring(465,3,'#e6d7b5');ring(446,3,'#c3b9a5');ring(437,2,'#59736c');
+// fixed diamonds / deflectors
+for(let i=0;i<8;i++){let a=TAU*i/8+.14;ctx.save();ctx.rotate(a);ctx.translate(424,0);ctx.rotate(Math.PI/4);let metal=ctx.createLinearGradient(-8,-8,8,8);metal.addColorStop(0,'#fff7da');metal.addColorStop(.5,'#acb3b5');metal.addColorStop(1,'#4b575a');ctx.fillStyle=metal;ctx.fillRect(-8,-8,16,16);ctx.strokeStyle='#f8e7bd';ctx.lineWidth=2;ctx.strokeRect(-8,-8,16,16);ctx.restore()}
+// Red / black rotor, 49 distinct equal pockets
+const n=wheelNames.length;
+if(n){ctx.save();ctx.rotate(rotation+base);const step=TAU/n;
+for(let i=0;i<n;i++){const a=i*step,b=a+step,col=(i%2===0?'#b82030':'#12191c');ctx.beginPath();ctx.arc(0,0,417,a,b);ctx.arc(0,0,179,b,a,true);ctx.closePath();ctx.fillStyle=i===highlight?'#caa53c':col;ctx.fill();ctx.strokeStyle='#dfb574';ctx.lineWidth=1.3;ctx.stroke();
+// Raised pocket divider at outer end, making each landing spot distinct.
+ctx.beginPath();ctx.moveTo(Math.cos(a)*390,Math.sin(a)*390);ctx.lineTo(Math.cos(a)*417,Math.sin(a)*417);ctx.strokeStyle='#fff0cb';ctx.lineWidth=2.1;ctx.stroke();
+// Big, radial, readable label on each spoke. Radial orientation avoids the tiny lettering of the earlier version.
+const mid=(i+.5)*step,screen=norm(rotation+base+mid),isLeft=screen>Math.PI/2&&screen<3*Math.PI/2;
+ctx.save();ctx.rotate(mid);let label=wheelNames[i].short;
+const room=211;let font=n>44?23:n>30?24:n>20?26:28;
+ctx.font=`900 ${font}px Arial,sans-serif`;while(ctx.measureText(label).width>room&&font>16){font-=.5;ctx.font=`900 ${font}px Arial,sans-serif`;}
+ctx.fillStyle='#fff7df';ctx.textAlign='left';ctx.textBaseline='middle';ctx.shadowColor='#000';ctx.shadowBlur=4;
+if(isLeft){ctx.translate(407,0);ctx.rotate(Math.PI)}else ctx.translate(193,0);
+ctx.fillText(label,0,0);ctx.shadowBlur=0;ctx.restore();}
+ctx.restore();}
+// center rotor and ornate spokes
+let bowl=ctx.createRadialGradient(-80,-100,20,0,0,179);bowl.addColorStop(0,'#356d52');bowl.addColorStop(.57,'#13382e');bowl.addColorStop(.9,'#081e21');bowl.addColorStop(1,'#d2ab65');rectCircle(178,bowl);ring(174,4,'#ffe0a0');
+ctx.save();ctx.rotate(rotation);for(let i=0;i<10;i++){ctx.save();ctx.rotate(i*TAU/10);ctx.fillStyle='#d9b777';ctx.beginPath();ctx.moveTo(56,-7);ctx.lineTo(164,-3);ctx.lineTo(164,3);ctx.lineTo(56,7);ctx.fill();ctx.restore()}ctx.restore();
+let hub=ctx.createRadialGradient(-20,-30,5,0,0,74);hub.addColorStop(0,'#fff8d0');hub.addColorStop(.45,'#e3bc78');hub.addColorStop(1,'#79502a');rectCircle(73,hub);ring(69,3,'#fff1bf');ctx.fillStyle='#51331b';ctx.textAlign='center';ctx.font='bold 21px Georgia';ctx.fillText('UGR',0,-9);ctx.font='900 25px Georgia';ctx.fillText('DISEÑOS',0,20);ctx.font='bold 13px Arial';ctx.fillText('PULSA AQUÍ',0,47);
+// ball tracks: bright glint, motion blur and rolling sphere
+if(ballVisible){const bx=Math.cos(ballAngle)*ballRadius,by=Math.sin(ballAngle)*ballRadius;
+if(phase==='track'||phase==='fall'){ctx.strokeStyle='#dcefff25';ctx.lineWidth=7;ctx.beginPath();ctx.arc(0,0,ballRadius,ballAngle+.045,ballAngle+.21);ctx.stroke()}
+ctx.fillStyle='#0008';ctx.beginPath();ctx.ellipse(bx+5,by+8,13,9,0,0,TAU);ctx.fill();let gb=ctx.createRadialGradient(bx-5,by-6,0,bx,by,14);gb.addColorStop(0,'#ffffff');gb.addColorStop(.26,'#f7ffff');gb.addColorStop(.6,'#aab5bc');gb.addColorStop(1,'#3e4653');ctx.fillStyle=gb;ctx.beginPath();ctx.arc(bx,by,12.6,0,TAU);ctx.fill();ctx.strokeStyle='#fefefeaa';ctx.lineWidth=1;ctx.stroke();}
+if(animation)hand((performance.now()-animation.begin)/1000);
+ctx.restore();}
+
+function endSpin(){if(!animation)return;const a=animation,index=a.index,picked=wheelNames[index];rotation=a.rotationEnd;
+ ballAngle=a.ballEnd;ballRadius=403;ballVisible=true;highlight=index;
+ settled={index,t:performance.now(),rotationEnd:rotation,ballOffset:base+(index+.5)*TAU/wheelNames.length};
+ animation=null;phase='settled';selectedOrder.push(picked.full);persist();
+ $('winner').textContent=picked.full;$('subresult').textContent='✓ Seleccionado/a · Marcado/a en la lista · Excluido/a del siguiente sorteo';
+ $('status').textContent=available.length>1?'Sorteo concluido · Preparado para la siguiente selección':'Sorteo concluido';
+ $('result').classList.remove('winnerflash');void $('result').offsetWidth;$('result').classList.add('winnerflash');fanfare();sync();}
+function frame(now){if(animation){const a=animation,t=clamp((now-a.begin)/1000,0,WIN_T);
+ rotation=a.rotationStart+a.initialVelocity*t-.5*a.accel*t*t;
+ if(t<RELEASE_T){phase='start';ballVisible=false;$('status').textContent='La mano prepara el lanzamiento…';}
+ else{const s=t-RELEASE_T,b=ballTravel(s);ballAngle=b.angle;ballRadius=b.radius;ballVisible=true;phase=b.stage;
+ if(phase==='track')$('status').textContent='La bola gira por la pista exterior en sentido contrario…';
+ else if(phase==='fall')$('status').textContent='Pierde velocidad, desciende y golpea los deflectores…';
+ else $('status').textContent='Rebotes irregulares: la bola cruza varios alojamientos…';
+ if(phase==='bounce'&&b.impact!==lastTick){lastTick=b.impact;tone(480+rand()*340,.03,'triangle',.014)} }
+ if(t>=WIN_T)endSpin();}
+ else if(settled){const age=(now-settled.t)/1000;
+ // La bola acompaña brevemente al rotor después de quedar alojada.
+ const delta=.86*6*(1-Math.exp(-age/6));rotation=settled.rotationEnd+delta;
+ ballAngle=settled.ballOffset+rotation;ballRadius=403;ballVisible=true;}
+ drawWheel();requestAnimationFrame(frame);}
+function undo(){if(animation||!selectedOrder.length)return;selectedOrder.pop();persist();sync();clearBall();$('winner').textContent='—';$('subresult').textContent='Última exclusión anulada';$('status').textContent='Lista actualizada';}
+function reset(){if(animation||!selectedOrder.length)return;if(!confirm('¿Reincorporar a todos los estudiantes al sorteo?'))return;
+ selectedOrder=[];persist();sync();clearBall();$('winner').textContent='—';$('subresult').textContent='Todos están disponibles';$('status').textContent='Listado restaurado';}
+$('loadtxt').addEventListener('click',()=>{if(!animation)$('rosterFile').click()});
+$('rosterFile').addEventListener('change',async e=>{
+ const file=e.target.files&&e.target.files[0];if(!file)return;
+ try{loadRoster(await file.text(),file.name);}catch(err){$('status').textContent='No se ha podido leer el archivo TXT';}
+ e.target.value='';
+});
+async function autoLoadRoster(){
+ try{
+  const resp=await fetch('./alumnos.txt',{cache:'no-store'});
+  if(!resp.ok)throw Error('HTTP '+resp.status);
+  if(!loadRoster(await resp.text(),'alumnos.txt'))return;
+ }catch(e){
+  $('status').textContent='No se ha podido cargar alumnos.txt automáticamente. Pulsa CARGAR TXT y elige tu archivo local.';
+  $('subresult').textContent='Esperando la lista externa de alumnos';
+ }
+}
+$('start').addEventListener('click',start);$('centerstart').addEventListener('click',start);$('undo').addEventListener('click',undo);$('reset').addEventListener('click',reset);
+$('mute').addEventListener('click',()=>{soundOn=!soundOn;$('mute').textContent=soundOn?'🔊 SONIDO':'🔇 SILENCIO'});
+$('fullscreen').addEventListener('click',()=>{document.body.classList.toggle('fs');$('fullscreen').textContent=document.body.classList.contains('fs')?'⤡ SALIR DE PANTALLA COMPLETA':'⛶ MODO PROYECTOR'});
+window.addEventListener('keydown',e=>{if(e.code==='Space'&&!e.repeat&&e.target.tagName!=='INPUT'){e.preventDefault();start();}else if(e.code==='Escape'&&document.body.classList.contains('fs')){$('fullscreen').click();}});
+sync();clearBall();requestAnimationFrame(frame);autoLoadRoster();
+</script>
+</body></html>
