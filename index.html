@@ -161,8 +161,11 @@ html,body{min-height:100%;}
 <script>
 'use strict';
 const TAU=Math.PI*2,base=-Math.PI/2,$=id=>document.getElementById(id),canvas=$('wheel'),ctx=canvas.getContext('2d');
-// DURACIONES DE LA SECUENCIA COMPLETA: aproximadamente 9 segundos.
-const RELEASE_T=1.0,ROLL_T=4.35,FALL_T=1.15,SETTLE_T=2.30,WIN_T=RELEASE_T+ROLL_T+FALL_T+SETTLE_T;
+// La carrera exterior dura ahora la mitad; el suspense se concentra en los rebotes.
+// El rotor queda completamente quieto unos dos segundos antes de que pare la bola.
+const RELEASE_T=.85,ROLL_T=2.15,FALL_T=1.00,SETTLE_T=5.40;
+const WIN_T=RELEASE_T+ROLL_T+FALL_T+SETTLE_T;
+const ROTOR_STOP_T=RELEASE_T+ROLL_T+FALL_T+SETTLE_T*.60;
 const clamp=(v,a,b)=>Math.max(a,Math.min(v,b)),smooth=x=>{x=clamp(x,0,1);return x*x*(3-2*x)},norm=a=>((a%TAU)+TAU)%TAU;
 // alumnos.txt se mantiene fuera del HTML. Cada nueva lista tiene un historial separado.
 let fullNames=[], all=[], STORAGE='', selectedOrder=[], dataLoaded=false;
@@ -201,32 +204,53 @@ function tone(f=450,duration=.07,type='sine',volume=.02){if(!soundOn)return;try{
 function fanfare(){if(!soundOn)return;const notes=[[523,.0,.13],[659,.13,.13],[784,.26,.14],[1047,.43,.27]];for(const [f,delay,d] of notes){setTimeout(()=>tone(f,d,'triangle',.04),Math.round(delay*1000))}}
 // La selección se efectúa de forma uniforme entre quienes siguen disponibles.
 // El recorrido visual se construye después, con irregularidades independientes para cada giro.
-const a0=-.57,angularStart=11.4,angularDrag=1.70;
-function orbitDistance(s){return angularStart*s-.5*angularDrag*s*s}
-function endFallAngle(){const omega=angularStart-angularDrag*ROLL_T;return a0-orbitDistance(ROLL_T)-(omega*FALL_T-.48*FALL_T*FALL_T)}
-function makeBounceFrames(){let a=endFallAngle(),out=[{u:0,angle:a,radius:404}],count=11,travel=2.12+rand()*.55;
- // Continuo descenso de velocidad angular, alternando saltos y rebotes hacia ambos lados.
- for(let i=1;i<count;i++){let u=i/count;let wander=(rand()-.5)*(.82*(1-u)+.1);
- let angle=a-travel*(1-(1-u)**1.4)+wander;
- let radius=402+((rand()-.5)*19)*(1-u*.67);
- out.push({u,angle,radius});}
- out.push({u:1,angle:a-travel,radius:403});return out;}
-function ballTravel(s){if(s<=0)return{angle:a0,radius:459,stage:'release'};
+const a0=-.57,angularStart=16.0,angularDrag=4.20,FALL_DECEL=3.40;
+function orbitDistance(s){return angularStart*s-.5*angularDrag*s*s;}
+function endFallAngle(){const omega=angularStart-angularDrag*ROLL_T;return a0-orbitDistance(ROLL_T)-omega*FALL_T+.5*FALL_DECEL*FALL_T*FALL_T;}
+function makeBounceFrames(){
+ // El ángulo final es aleatorio antes de elegir visualmente la alineación del rotor.
+ // Saltos con trayectorias cortas, cambios de dirección y amplitud decreciente.
+ // Los últimos impactos se producen cuando el rotor YA está detenido.
+ const u=[0,.075,.17,.265,.36,.47,.58,.68,.77,.845,.902,.948,.977,1];
+ const jumps=[-.52,-.44,-.33,.24,-.29,.25,-.22,.20,-.17,.13,-.095,.062,-.037];
+ const radii=[404,416,397,415,399,413,399,411,401,409,403,406,402,403];
+ let angle=endFallAngle(),direction=rand()<.5?1:-1;
+ const frames=[{u:0,angle,radius:404}];
+ for(let i=1;i<u.length;i++){
+  const randomFactor=.78+.44*rand(),bounce=jumps[i-1]*randomFactor;
+  // La componente de avance se atenúa, y pequeños golpes cambian la trayectoria.
+  angle+=i<4?bounce:direction*bounce;
+  const damping=1-.80*u[i];
+  const radius=i===u.length-1?403:403+(radii[i]-403)*damping;
+  frames.push({u:u[i],angle,radius});
+ }
+ return frames;
+}
+function ballTravel(s){
+ if(s<=0)return{angle:a0,radius:459,stage:'release'};
  if(s<=ROLL_T)return{angle:a0-orbitDistance(s),radius:459,stage:'track'};
- let fall=s-ROLL_T,omega=angularStart-angularDrag*ROLL_T;
- if(fall<=FALL_T){let q=fall/FALL_T;
-  return {angle:a0-orbitDistance(ROLL_T)-omega*fall+.48*fall*fall+.028*Math.sin(q*45)*Math.sin(Math.PI*q),radius:459-55*smooth(q)+9*Math.sin(q*30)*Math.sin(Math.PI*q)**2,stage:'fall'};}
- let u=clamp((fall-FALL_T)/SETTLE_T,0,1),frames=bounceKeyframes;
- for(let i=1;i<frames.length;i++){if(u<=frames[i].u){const l=frames[i-1],r=frames[i],z=(u-l.u)/(r.u-l.u);const k=smooth(z);return{angle:l.angle+(r.angle-l.angle)*k,radius:l.radius+(r.radius-l.radius)*k,stage:'bounce',impact:i};}}
- return{...frames[frames.length-1],stage:'bounce',impact:frames.length-1};}
+ const fall=s-ROLL_T,omega=angularStart-angularDrag*ROLL_T;
+ if(fall<=FALL_T){const q=fall/FALL_T;
+  return {angle:a0-orbitDistance(ROLL_T)-omega*fall+.5*FALL_DECEL*fall*fall+.022*Math.sin(q*42)*Math.sin(Math.PI*q),
+   radius:459-55*smooth(q)+7*Math.sin(q*27)*Math.sin(Math.PI*q)**2,stage:'fall'};}
+ const u=clamp((fall-FALL_T)/SETTLE_T,0,1),frames=bounceKeyframes;
+ for(let i=1;i<frames.length;i++){
+  if(u<=frames[i].u){const l=frames[i-1],r=frames[i],z=(u-l.u)/(r.u-l.u);
+   // La inversión de velocidad en cada impacto reproduce los cambios de dirección,
+   // mientras que la oscilación radial representa la bola saltando entre separadores.
+   const radius=l.radius+(r.radius-l.radius)*z-3*Math.sin(Math.PI*z)*(1-u);
+   return{angle:l.angle+(r.angle-l.angle)*z,radius,stage:'bounce',impact:i};}
+ }
+ return{...frames[frames.length-1],stage:'bounce',impact:frames.length-1};
+}
 function start(){if(animation||!dataLoaded||!available.length)return;
  wheelNames=available.slice();highlight=-1;settled=null;ballVisible=false;ballAngle=a0;ballRadius=459;
  bounceKeyframes=makeBounceFrames();const index=Math.floor(rand()*wheelNames.length),ballEnd=bounceKeyframes[bounceKeyframes.length-1].angle,step=TAU/wheelNames.length;
  // Align the freely chosen student with the position at which the ball finishes.
  const desired=ballEnd-base-(index+.5)*step;
- const spinDistanceBase=desired-rotation;const turns=Math.round((32-spinDistanceBase)/TAU),distance=spinDistanceBase+turns*TAU;
- const finalVelocity=.86,initialVelocity=2*distance/WIN_T-finalVelocity,accel=(initialVelocity-finalVelocity)/WIN_T;
- animation={begin:performance.now(),index,ballEnd,rotationStart:rotation,rotationEnd:rotation+distance,initialVelocity,accel};phase='start';lastTick=-1;
+ const spinDistanceBase=desired-rotation;const turns=Math.round((19-spinDistanceBase)/TAU),distance=spinDistanceBase+turns*TAU;
+ // La velocidad angular se extingue realmente ANTES de que acaben los rebotes.
+ animation={begin:performance.now(),index,ballEnd,rotationStart:rotation,rotationEnd:rotation+distance,distance};phase='start';lastTick=-1;
  $('winner').textContent='—';$('subresult').textContent='Sorteo en curso';$('status').textContent='El rotor comienza a girar…';sync();tone(460,.11,'triangle',.025);
 }
 function rectCircle(r,fill){ctx.beginPath();ctx.arc(0,0,r,0,TAU);ctx.fillStyle=fill;ctx.fill()}
@@ -275,23 +299,23 @@ ctx.restore();}
 
 function endSpin(){if(!animation)return;const a=animation,index=a.index,picked=wheelNames[index];rotation=a.rotationEnd;
  ballAngle=a.ballEnd;ballRadius=403;ballVisible=true;highlight=index;
- settled={index,t:performance.now(),rotationEnd:rotation,ballOffset:base+(index+.5)*TAU/wheelNames.length};
+ settled={index,rotationEnd:rotation,ballOffset:base+(index+.5)*TAU/wheelNames.length};
  animation=null;phase='settled';selectedOrder.push(picked.full);persist();
  $('winner').textContent=picked.full;$('subresult').textContent='✓ Seleccionado/a · Marcado/a en la lista · Excluido/a del siguiente sorteo';
  $('status').textContent=available.length>1?'Sorteo concluido · Preparado para la siguiente selección':'Sorteo concluido';
  $('result').classList.remove('winnerflash');void $('result').offsetWidth;$('result').classList.add('winnerflash');fanfare();sync();}
 function frame(now){if(animation){const a=animation,t=clamp((now-a.begin)/1000,0,WIN_T);
- rotation=a.rotationStart+a.initialVelocity*t-.5*a.accel*t*t;
- if(t<RELEASE_T){phase='start';ballVisible=false;$('status').textContent='La mano prepara el lanzamiento…';}
+ const fraction=clamp(t/ROTOR_STOP_T,0,1);
+ rotation=a.rotationStart+a.distance*(1-(1-fraction)**3);
+ if(t<RELEASE_T){phase='start';ballVisible=false;$('status').textContent='Preparando el lanzamiento…';}
  else{const s=t-RELEASE_T,b=ballTravel(s);ballAngle=b.angle;ballRadius=b.radius;ballVisible=true;phase=b.stage;
- if(phase==='track')$('status').textContent='La bola gira por la pista exterior en sentido contrario…';
- else if(phase==='fall')$('status').textContent='Pierde velocidad, desciende y golpea los deflectores…';
- else $('status').textContent='Rebotes irregulares: la bola cruza varios alojamientos…';
- if(phase==='bounce'&&b.impact!==lastTick){lastTick=b.impact;tone(480+rand()*340,.03,'triangle',.014)} }
+ if(phase==='track')$('status').textContent='La bola gira por la pista exterior…';
+ else if(phase==='fall')$('status').textContent='Pierde inercia y cae sobre los separadores…';
+ else if(t>=ROTOR_STOP_T)$('status').textContent='¡La ruleta está parada, pero la bola sigue saltando!';
+ else $('status').textContent='La ruleta se frena; la bola rebota entre varias casillas…';
+ if(phase==='bounce'&&b.impact!==lastTick){lastTick=b.impact;tone(420+rand()*360,.045,'triangle',.016)} }
  if(t>=WIN_T)endSpin();}
- else if(settled){const age=(now-settled.t)/1000;
- // La bola acompaña brevemente al rotor después de quedar alojada.
- const delta=.86*6*(1-Math.exp(-age/6));rotation=settled.rotationEnd+delta;
+ else if(settled){rotation=settled.rotationEnd;
  ballAngle=settled.ballOffset+rotation;ballRadius=403;ballVisible=true;}
  drawWheel();requestAnimationFrame(frame);}
 function undo(){if(animation||!selectedOrder.length)return;selectedOrder.pop();persist();sync();clearBall();$('winner').textContent='—';$('subresult').textContent='Última exclusión anulada';$('status').textContent='Lista actualizada';}
