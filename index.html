@@ -389,7 +389,7 @@ let bowl=ctx.createRadialGradient(-80,-100,20,0,0,179);bowl.addColorStop(0,'#356
 ctx.save();ctx.rotate(rotation);for(let i=0;i<10;i++){ctx.save();ctx.rotate(i*TAU/10);ctx.fillStyle='#d9b777';ctx.beginPath();ctx.moveTo(56,-7);ctx.lineTo(164,-3);ctx.lineTo(164,3);ctx.lineTo(56,7);ctx.fill();ctx.restore()}ctx.restore();
 let hub=ctx.createRadialGradient(-20,-30,5,0,0,74);hub.addColorStop(0,'#fff8d0');hub.addColorStop(.45,'#e3bc78');hub.addColorStop(1,'#79502a');rectCircle(73,hub);ring(69,3,'#fff1bf');ctx.fillStyle='#51331b';ctx.textAlign='center';ctx.font='bold 21px Georgia';ctx.fillText('UGR',0,-9);ctx.font='900 25px Georgia';ctx.fillText('DISEÑOS',0,20);ctx.font='bold 13px Arial';ctx.fillText('PULSA AQUÍ',0,47);
 // Bola grande deliberadamente para que se siga desde el fondo del aula:
-// cuerpo de acero pulido, reflejos especulares, brillo ambiental y sombra
+// cuerpo de oro pulido, reflejos especulares, brillo ambiental y sombra
 // dependiente de la altura de salto. No es una imagen externa.
 if(ballVisible){
  const bx=Math.cos(ballAngle)*ballRadius,by=Math.sin(ballAngle)*ballRadius;
@@ -402,17 +402,17 @@ if(ballVisible){
  ctx.fillStyle=shadow;ctx.beginPath();ctx.arc(0,0,R*1.45,0,TAU);ctx.fill();ctx.restore();
  // Halo luminoso para distinguir la bola del mosaico rojo y negro.
  const halo=ctx.createRadialGradient(bx,cy,7,bx,cy,R*1.8);
- halo.addColorStop(0,'rgba(255,255,255,.22)');halo.addColorStop(.52,'rgba(232,244,255,.20)');halo.addColorStop(1,'rgba(255,255,255,0)');
+ halo.addColorStop(0,'rgba(255,236,145,.27)');halo.addColorStop(.52,'rgba(255,198,66,.19)');halo.addColorStop(1,'rgba(255,191,65,0)');
  ctx.fillStyle=halo;ctx.beginPath();ctx.arc(bx,cy,R*1.8,0,TAU);ctx.fill();
 
 
- // NÍQUEL ESPECULAR CON REFLEJO ESFÉRICO: la imagen del entorno se curva según la normal de la esfera.
+ // ORO PULIDO ESPECULAR CON REFLEJO ESFÉRICO: la imagen del entorno se curva según la normal de la esfera.
  // No se utiliza transparencia: cada píxel de la bola es opaco, con respuesta metálica y luces especulares.
  const patchR=66, patchD=patchR*2, sphereRes=48, offset=500;
  const sx=Math.max(0,Math.min(1000-patchD,Math.round(offset+bx-patchR)));
  const sy=Math.max(0,Math.min(1000-patchD,Math.round(offset+cy-patchR)));
  const surroundings=ctx.getImageData(sx,sy,patchD,patchD).data;
- const mapCanvas=ctx.canvas._nickelSphere || (ctx.canvas._nickelSphere=document.createElement('canvas'));
+ const mapCanvas=ctx.canvas._goldSphere || (ctx.canvas._goldSphere=document.createElement('canvas'));
  if(mapCanvas.width!==sphereRes||mapCanvas.height!==sphereRes){mapCanvas.width=sphereRes;mapCanvas.height=sphereRes;}
  const mapCtx=mapCanvas.getContext('2d');
  const mapped=mapCtx.createImageData(sphereRes,sphereRes),out=mapped.data;
@@ -426,14 +426,15 @@ if(ballVisible){
    const v=Math.max(0,Math.min(patchD-1,Math.round(patchR+ry*patchR*.88)));
    const si=(v*patchD+u)*4;
    const lum=.2126*surroundings[si]+.7152*surroundings[si+1]+.0722*surroundings[si+2];
-   // El metal refleja el color vecino desaturado, pero conserva una base plateada.
-   const reflect=.68,edge=1-nz;
+   // El oro refleja el entorno local, filtrándolo hacia amarillos y ámbar sin perder los reflejos oscuros.
+   const reflect=.59,edge=1-nz;
    const glint=Math.pow(Math.max(0,1-Math.hypot(nx+.34,ny+.46)*2.35),6)*175;
-   const rim=38*edge*edge,shade=1-.43*edge;
+   const rim=28*edge*edge,shade=1-.37*edge;
    for(let channel=0;channel<3;channel++){
-    const nickel=[192,201,209][channel];
-    const fromWorld=surroundings[si+channel]*.44+lum*.56;
-    const value=(reflect*fromWorld+(1-reflect)*nickel)*shade+glint+rim;
+    const gold=[255,205,78][channel];
+    const fromWorld=surroundings[si+channel]*.58+lum*.42;
+    const metallicWorld=fromWorld*[1,.85,.43][channel];
+    const value=(reflect*metallicWorld+(1-reflect)*gold)*shade+glint*[1,.94,.81][channel]+rim*[1,.78,.38][channel];
     out[k+channel]=Math.min(255,Math.max(0,Math.round(value)));
    }
    out[k+3]=255;
@@ -441,38 +442,38 @@ if(ballVisible){
  }
  mapCtx.putImageData(mapped,0,0);
  // Base metálica maciza y reflejo curvado.
- const baseNickel=ctx.createRadialGradient(bx-R*.45,cy-R*.48,R*.07,bx+R*.12,cy+R*.15,R*1.14);
- baseNickel.addColorStop(0,'#ffffff');baseNickel.addColorStop(.3,'#d9e2ea');
- baseNickel.addColorStop(.67,'#808d99');baseNickel.addColorStop(.85,'#343e48');
- baseNickel.addColorStop(.96,'#c8d2d9');baseNickel.addColorStop(1,'#1b242d');
+ const baseGold=ctx.createRadialGradient(bx-R*.45,cy-R*.48,R*.07,bx+R*.12,cy+R*.15,R*1.14);
+ baseGold.addColorStop(0,'#fffbd6');baseGold.addColorStop(.3,'#ffe37e');
+ baseGold.addColorStop(.67,'#d6a334');baseGold.addColorStop(.85,'#74480c');
+ baseGold.addColorStop(.96,'#ffe18a');baseGold.addColorStop(1,'#493006');
  ctx.save();ctx.shadowColor='#1119';ctx.shadowBlur=7;ctx.shadowOffsetX=1;ctx.shadowOffsetY=2;
- ctx.fillStyle=baseNickel;ctx.beginPath();ctx.arc(bx,cy,R,0,TAU);ctx.fill();ctx.restore();
+ ctx.fillStyle=baseGold;ctx.beginPath();ctx.arc(bx,cy,R,0,TAU);ctx.fill();ctx.restore();
  ctx.save();ctx.beginPath();ctx.arc(bx,cy,R-.2,0,TAU);ctx.clip();
  ctx.drawImage(mapCanvas,bx-R,cy-R,R*2,R*2);
  // Bandas reflectantes de luminarias, con borde oscuro característico del espejo metálico.
  ctx.save();ctx.translate(bx,cy);ctx.rotate(-.43);
  const strips=ctx.createLinearGradient(-R,-R,R,R);
  strips.addColorStop(0,'rgba(255,255,255,0)');
- strips.addColorStop(.28,'rgba(23,33,43,.07)');
+ strips.addColorStop(.28,'rgba(77,46,6,.10)');
  strips.addColorStop(.39,'rgba(255,255,255,.18)');
  strips.addColorStop(.47,'rgba(255,255,255,.88)');
  strips.addColorStop(.54,'rgba(255,255,255,.06)');
- strips.addColorStop(.67,'rgba(20,30,41,.38)');
- strips.addColorStop(.75,'rgba(242,250,255,.23)');
+ strips.addColorStop(.67,'rgba(99,55,2,.36)');
+ strips.addColorStop(.75,'rgba(255,245,170,.31)');
  strips.addColorStop(1,'rgba(255,255,255,0)');
  ctx.fillStyle=strips;ctx.fillRect(-R*1.5,-R*1.5,R*3,R*3);ctx.restore();
  // Destello compacto y sombra inferior, para conservar la percepción de volumen.
  ctx.fillStyle='rgba(255,255,255,.97)';
  ctx.beginPath();ctx.ellipse(bx-R*.36,cy-R*.45,R*.23,R*.12,-.56,0,TAU);ctx.fill();
  const bottom=ctx.createLinearGradient(bx,cy,bx,cy+R);
- bottom.addColorStop(0,'rgba(12,23,33,0)');
- bottom.addColorStop(.65,'rgba(12,23,33,.04)');
- bottom.addColorStop(1,'rgba(8,13,20,.48)');
+ bottom.addColorStop(0,'rgba(77,44,4,0)');
+ bottom.addColorStop(.65,'rgba(77,44,4,.04)');
+ bottom.addColorStop(1,'rgba(61,34,0,.42)');
  ctx.fillStyle=bottom;ctx.fillRect(bx-R,cy-R,R*2,R*2);
  ctx.restore();
- ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=1.2;
+ ctx.strokeStyle='rgba(255,251,208,.92)';ctx.lineWidth=1.2;
  ctx.beginPath();ctx.arc(bx,cy,R-.3,Math.PI*1.06,Math.PI*1.70);ctx.stroke();
- ctx.strokeStyle='rgba(19,29,37,.73)';ctx.lineWidth=.9;
+ ctx.strokeStyle='rgba(74,42,3,.72)';ctx.lineWidth=.9;
  ctx.beginPath();ctx.arc(bx,cy,R-.3,Math.PI*.16,Math.PI*.86);ctx.stroke();
 }
 if(animation)hand((performance.now()-animation.begin)/1000);
