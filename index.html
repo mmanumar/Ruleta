@@ -405,40 +405,75 @@ if(ballVisible){
  halo.addColorStop(0,'rgba(255,255,255,.22)');halo.addColorStop(.52,'rgba(232,244,255,.20)');halo.addColorStop(1,'rgba(255,255,255,0)');
  ctx.fillStyle=halo;ctx.beginPath();ctx.arc(bx,cy,R*1.8,0,TAU);ctx.fill();
 
- // NIQUEL PULIDO OPACO: reflejos de alto contraste, no transparencia.
- // Renderizamos primero una base maciza de acero niquelado; no se dibuja el suelo a través de la esfera.
- const shell=ctx.createRadialGradient(bx-R*.40,cy-R*.54,R*.03,bx+R*.12,cy+R*.10,R*1.17);
- shell.addColorStop(0,'#fffef8');shell.addColorStop(.15,'#ffffff');
- shell.addColorStop(.30,'#e9eef2');shell.addColorStop(.49,'#c5cbd0');
- shell.addColorStop(.65,'#899198');shell.addColorStop(.78,'#5e656b');
- shell.addColorStop(.87,'#d7dce0');shell.addColorStop(.94,'#737a80');
- shell.addColorStop(1,'#252a30');
- ctx.save();ctx.shadowColor='#000b';ctx.shadowBlur=5;ctx.shadowOffsetX=2;ctx.shadowOffsetY=3;
- ctx.fillStyle=shell;ctx.beginPath();ctx.arc(bx,cy,R,0,TAU);ctx.fill();ctx.restore();
- ctx.save();ctx.beginPath();ctx.arc(bx,cy,R*.98,0,TAU);ctx.clip();
- // Dos franjas reflectantes finas, curvadas por la esfera, como un softbox fotografiado sobre níquel.
- ctx.save();ctx.translate(bx,cy);ctx.rotate(-.47);
- const strip=ctx.createLinearGradient(-R,-R*.9,R,R*.9);
- strip.addColorStop(0,'rgba(17,29,39,0)');
- strip.addColorStop(.26,'rgba(25,36,43,.12)');
- strip.addColorStop(.38,'rgba(255,255,255,.28)');
- strip.addColorStop(.47,'rgba(255,255,255,.90)');
- strip.addColorStop(.55,'rgba(255,255,255,.12)');
- strip.addColorStop(.69,'rgba(29,39,47,.58)');
- strip.addColorStop(.82,'rgba(250,253,255,.34)');
- strip.addColorStop(1,'rgba(255,255,255,0)');
- ctx.fillStyle=strip;ctx.fillRect(-R*1.4,-R*1.4,R*2.8,R*2.8);ctx.restore();
- // Reflexión blanca estrecha en la parte superior izquierda.
- ctx.fillStyle='rgba(255,255,255,.98)';ctx.beginPath();
- ctx.ellipse(bx-R*.34,cy-R*.49,R*.27,R*.145,-.56,0,TAU);ctx.fill();
- const underside=ctx.createLinearGradient(bx,cy,bx,cy+R);
- underside.addColorStop(0,'rgba(255,255,255,0)');
- underside.addColorStop(.70,'rgba(31,39,45,.10)');
- underside.addColorStop(1,'rgba(14,19,24,.53)');
- ctx.fillStyle=underside;ctx.fillRect(bx-R,cy-R,R*2,R*2);
+
+ // NÍQUEL ESPECULAR CON REFLEJO ESFÉRICO: la imagen del entorno se curva según la normal de la esfera.
+ // No se utiliza transparencia: cada píxel de la bola es opaco, con respuesta metálica y luces especulares.
+ const patchR=66, patchD=patchR*2, sphereRes=48, offset=500;
+ const sx=Math.max(0,Math.min(1000-patchD,Math.round(offset+bx-patchR)));
+ const sy=Math.max(0,Math.min(1000-patchD,Math.round(offset+cy-patchR)));
+ const surroundings=ctx.getImageData(sx,sy,patchD,patchD).data;
+ const mapCanvas=ctx.canvas._nickelSphere || (ctx.canvas._nickelSphere=document.createElement('canvas'));
+ if(mapCanvas.width!==sphereRes||mapCanvas.height!==sphereRes){mapCanvas.width=sphereRes;mapCanvas.height=sphereRes;}
+ const mapCtx=mapCanvas.getContext('2d');
+ const mapped=mapCtx.createImageData(sphereRes,sphereRes),out=mapped.data;
+ for(let py=0;py<sphereRes;py++){
+  for(let px=0;px<sphereRes;px++){
+   const nx=(px+.5)*2/sphereRes-1,ny=(py+.5)*2/sphereRes-1;
+   const rr=nx*nx+ny*ny,k=(py*sphereRes+px)*4;
+   if(rr>=1){out[k+3]=0;continue;}
+   const nz=Math.sqrt(1-rr),rx=2*nx*nz,ry=2*ny*nz;
+   const u=Math.max(0,Math.min(patchD-1,Math.round(patchR+rx*patchR*.88)));
+   const v=Math.max(0,Math.min(patchD-1,Math.round(patchR+ry*patchR*.88)));
+   const si=(v*patchD+u)*4;
+   const lum=.2126*surroundings[si]+.7152*surroundings[si+1]+.0722*surroundings[si+2];
+   // El metal refleja el color vecino desaturado, pero conserva una base plateada.
+   const reflect=.68,edge=1-nz;
+   const glint=Math.pow(Math.max(0,1-Math.hypot(nx+.34,ny+.46)*2.35),6)*175;
+   const rim=38*edge*edge,shade=1-.43*edge;
+   for(let channel=0;channel<3;channel++){
+    const nickel=[192,201,209][channel];
+    const fromWorld=surroundings[si+channel]*.44+lum*.56;
+    const value=(reflect*fromWorld+(1-reflect)*nickel)*shade+glint+rim;
+    out[k+channel]=Math.min(255,Math.max(0,Math.round(value)));
+   }
+   out[k+3]=255;
+  }
+ }
+ mapCtx.putImageData(mapped,0,0);
+ // Base metálica maciza y reflejo curvado.
+ const baseNickel=ctx.createRadialGradient(bx-R*.45,cy-R*.48,R*.07,bx+R*.12,cy+R*.15,R*1.14);
+ baseNickel.addColorStop(0,'#ffffff');baseNickel.addColorStop(.3,'#d9e2ea');
+ baseNickel.addColorStop(.67,'#808d99');baseNickel.addColorStop(.85,'#343e48');
+ baseNickel.addColorStop(.96,'#c8d2d9');baseNickel.addColorStop(1,'#1b242d');
+ ctx.save();ctx.shadowColor='#1119';ctx.shadowBlur=7;ctx.shadowOffsetX=1;ctx.shadowOffsetY=2;
+ ctx.fillStyle=baseNickel;ctx.beginPath();ctx.arc(bx,cy,R,0,TAU);ctx.fill();ctx.restore();
+ ctx.save();ctx.beginPath();ctx.arc(bx,cy,R-.2,0,TAU);ctx.clip();
+ ctx.drawImage(mapCanvas,bx-R,cy-R,R*2,R*2);
+ // Bandas reflectantes de luminarias, con borde oscuro característico del espejo metálico.
+ ctx.save();ctx.translate(bx,cy);ctx.rotate(-.43);
+ const strips=ctx.createLinearGradient(-R,-R,R,R);
+ strips.addColorStop(0,'rgba(255,255,255,0)');
+ strips.addColorStop(.28,'rgba(23,33,43,.07)');
+ strips.addColorStop(.39,'rgba(255,255,255,.18)');
+ strips.addColorStop(.47,'rgba(255,255,255,.88)');
+ strips.addColorStop(.54,'rgba(255,255,255,.06)');
+ strips.addColorStop(.67,'rgba(20,30,41,.38)');
+ strips.addColorStop(.75,'rgba(242,250,255,.23)');
+ strips.addColorStop(1,'rgba(255,255,255,0)');
+ ctx.fillStyle=strips;ctx.fillRect(-R*1.5,-R*1.5,R*3,R*3);ctx.restore();
+ // Destello compacto y sombra inferior, para conservar la percepción de volumen.
+ ctx.fillStyle='rgba(255,255,255,.97)';
+ ctx.beginPath();ctx.ellipse(bx-R*.36,cy-R*.45,R*.23,R*.12,-.56,0,TAU);ctx.fill();
+ const bottom=ctx.createLinearGradient(bx,cy,bx,cy+R);
+ bottom.addColorStop(0,'rgba(12,23,33,0)');
+ bottom.addColorStop(.65,'rgba(12,23,33,.04)');
+ bottom.addColorStop(1,'rgba(8,13,20,.48)');
+ ctx.fillStyle=bottom;ctx.fillRect(bx-R,cy-R,R*2,R*2);
  ctx.restore();
- ctx.strokeStyle='#ffffffd6';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(bx,cy,R-.3,Math.PI*1.04,Math.PI*1.73);ctx.stroke();
- ctx.strokeStyle='#1f2933c2';ctx.lineWidth=.9;ctx.beginPath();ctx.arc(bx,cy,R-.35,Math.PI*.08,Math.PI*.92);ctx.stroke();
+ ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=1.2;
+ ctx.beginPath();ctx.arc(bx,cy,R-.3,Math.PI*1.06,Math.PI*1.70);ctx.stroke();
+ ctx.strokeStyle='rgba(19,29,37,.73)';ctx.lineWidth=.9;
+ ctx.beginPath();ctx.arc(bx,cy,R-.3,Math.PI*.16,Math.PI*.86);ctx.stroke();
 }
 if(animation)hand((performance.now()-animation.begin)/1000);
 ctx.restore();}
