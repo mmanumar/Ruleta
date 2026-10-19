@@ -108,6 +108,37 @@ html,body{min-height:100%;}
 @media(min-width:900px) and (min-height:900px){.wheel-wrap{width:min(100%,calc(100dvh - 355px),760px)}}
 /* Cabecera docente condensada: deja espacio vertical para el resultado */
 @media(min-width:900px){.heading{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);align-items:center;gap:14px;text-align:left;padding:4px 0 10px}.heading .academic{text-align:right}.heading h1{white-space:nowrap;font-size:clamp(22px,2.65vw,47px);margin:2px 0 0}.heading .pre{font-size:clamp(9px,.8vw,12px)}}
+
+/* MODO PROYECTOR: solo rueda, resultado y controles de clase. */
+.fs .page{max-width:1920px;padding:6px 12px 10px;margin:0 auto}
+.fs .heading{display:flex!important;justify-content:center;text-align:center;padding:0 0 5px}
+.fs .heading .academic{display:none!important}
+.fs .heading .branding{text-align:center}
+.fs .heading h1{white-space:normal;font-size:clamp(23px,2.1vw,35px);margin:3px 0}
+.fs .heading .pre{font-size:clamp(10px,.9vw,14px)}
+.fs .layout{display:flex!important;justify-content:center!important;align-items:flex-start}
+.fs .side{display:none!important}
+.fs .table-area{width:min(100%,1000px);max-width:1000px;margin:auto;padding:4px}
+.fs .wheel-wrap{width:min(100%,calc(100dvh - 290px),840px);max-width:840px;margin:auto}
+.fs .result{margin-top:4px;padding:8px 12px}
+.fs .result strong{font-size:clamp(32px,3.9vw,62px);min-height:39px;line-height:1.08}
+.fs .result small{font-size:clamp(11px,.9vw,14px)}
+.fs .actions{margin-top:9px;gap:12px}
+.fs .actions .btn{font-size:clamp(13px,1vw,17px);padding:10px 18px}
+.fs #loadtxt,.fs #exporttxt{display:none!important}
+.fs .status,.fs .info,.fs .foot,.fs .instruction{display:none!important}
+@media(max-width:899px){.fs .side{display:none!important}.fs .layout{display:flex!important}.fs .wheel-wrap{width:min(96vw,calc(100dvh - 295px))}}
+@media(max-height:600px){.fs .wheel-wrap{width:min(100%,calc(100dvh - 190px),840px)}.fs .heading{padding:0}.fs .result{padding:5px}.fs .actions{margin-top:5px}}
+/* Cuadro de exportación local. No envía ningún dato a servidores. */
+.export-dialog{width:min(94vw,480px);border:2px solid #dbb878;border-radius:18px;padding:22px;color:#f7ebd0;background:linear-gradient(145deg,#2e3043,#102b31);box-shadow:0 12px 50px #000b;font-family:inherit}
+.export-dialog::backdrop{background:#07111bd6;backdrop-filter:blur(3px)}
+.export-dialog h2{font-size:24px;color:#ffe0a2;margin:0 0 9px}
+.export-dialog p{font-size:14px;line-height:1.5;color:#e4dadd}
+.export-dialog .export-options{display:flex;flex-direction:column;gap:12px;margin:18px 0 10px}
+.export-dialog .btn{width:100%;box-shadow:none}
+.export-dialog .btn.secondary{padding:13px;font-size:15px}
+.export-dialog .btn:disabled{opacity:.45;cursor:not-allowed}
+.export-dialog .close-export{background:transparent;border:1px solid #9c9ba8;color:#d7dce5;padding:9px 16px;border-radius:9px;cursor:pointer;width:100%;margin-top:5px}
 </style>
 </head>
 <body>
@@ -116,9 +147,15 @@ html,body{min-height:100%;}
 <header class="heading"><div class="branding"><div class="pre">UNIVERSIDAD DE GRANADA · CURSO 2026/2027</div><h1>RULETA DE PARTICIPACIÓN</h1></div><div class="academic"><div class="program">Máster Universitario en Investigación en Actividad Física y Deporte</div><div class="coursemeta">Diseños Experimentales · Módulo Fundamentos de la Investigación · 3 ECTS</div><div class="teacher">Profesor: Manuel Alfonso Martínez Marín</div></div></header>
 <div class="layout"><main class="table-area"><div class="wheel-wrap"><canvas id="wheel" width="1000" height="1000" aria-label="Ruleta de estudiantes con rotación y rebotes de la bola"></canvas><button type="button" id="centerstart" class="center-hit" aria-label="Iniciar el sorteo tocando el eje central de la ruleta" title="Toca el eje para comenzar otro sorteo"></button></div>
 <section class="result" id="result"><small>ESTUDIANTE SELECCIONADO/A</small><strong id="winner" aria-live="polite">—</strong><div class="detail" id="subresult">Preparado para comenzar</div></section>
-<div class="actions"><button id="start" class="btn" disabled>▶ INICIAR SORTEO</button><button id="loadtxt" class="btn secondary" title="Seleccionar archivo local de alumnos">📄 CARGAR TXT</button><input type="file" id="rosterFile" accept=".txt,text/plain" hidden><button id="fullscreen" class="btn secondary">⛶ MODO PROYECTOR</button><button id="mute" class="btn secondary">🔊 SONIDO</button></div>
+<div class="actions"><button id="start" class="btn" disabled>▶ INICIAR SORTEO</button><button id="loadtxt" class="btn secondary" title="Seleccionar archivo local de alumnos">📄 CARGAR TXT</button><button id="exporttxt" class="btn secondary" type="button" disabled>↓ EXPORTAR TXT</button><input type="file" id="rosterFile" accept=".txt,text/plain" hidden><button id="fullscreen" class="btn secondary">⛶ MODO PROYECTOR</button><button id="mute" class="btn secondary">🔊 SONIDO</button></div>
 <p class="status" id="status" aria-live="polite">Cargando alumnos.txt…</p></main>
 <aside class="side"><section class="panel"><div class="stats"><div><b id="remaining">0</b><span>Pendientes</span></div><div><b id="selected">0</b><span>Seleccionados</span></div></div><h2>Listado completo · selección manual</h2><p>Cada estudiante seleccionado aparece con su casilla marcada. Puedes hacer clic en cualquier casilla para excluirlo o reincorporarlo al siguiente sorteo.</p><div class="names" id="list"></div><div class="tools"><button id="undo" class="btn secondary">↶ DESHACER ÚLTIMO</button><button id="reset" class="btn secondary">↻ REINCORPORAR A TODOS</button></div></section><section class="instruction"><b>Lista independiente:</b> edita <b>alumnos.txt</b> (un estudiante por línea, <b>APELLIDOS, NOMBRE</b>). Si está junto a index.html en la web, se carga automáticamente. También puedes seleccionarlo con <b>CARGAR TXT</b> sin publicarlo.</section></aside></div>
+<dialog id="exportdialog" class="export-dialog" aria-labelledby="exporttitle">
+<h2 id="exporttitle">Exportar lista de alumnos</h2>
+<p>Elige qué alumnos quieres guardar en un archivo TXT. Se descargará en este dispositivo; no se modificará el listado ni el historial.</p>
+<div class="export-options"><button id="exportall" type="button" class="btn">Todos los alumnos</button><button id="exportpending" type="button" class="btn secondary">Solo los pendientes de salir</button></div>
+<button id="exportcancel" class="close-export" type="button">Cancelar</button>
+</dialog>
 <p class="info">Sorteo aleatorio, sin repeticiones y con seguimiento editable. La bola recorre el carril exterior, cae al perder velocidad y rebota de forma irregular entre distintos alojamientos antes de detenerse. El nombre se muestra en grande y su selección queda guardada en este navegador.</p>
 <p class="foot">ESPACIO o clic en el eje: iniciar · ESC: cerrar modo proyector · Sin imágenes ni servicios externos · Los estudiantes están en alumnos.txt</p></div>
 <script>
@@ -153,7 +190,7 @@ function persist(){try{if(STORAGE)localStorage.setItem(STORAGE,JSON.stringify(se
 function safe(s){return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');}
 function sync(){available=remaining();$('remaining').textContent=available.length;$('selected').textContent=selectedOrder.length;
  $('list').innerHTML=all.map(x=>`<label class="person ${selectedOrder.includes(x.full)?'gone':''}"><input type="checkbox" data-i="${x.id}" ${selectedOrder.includes(x.full)?'checked':''} ${animation?'disabled':''}><span>${safe(x.full)}</span></label>`).join('');
- $('start').disabled=!dataLoaded||!!animation||!available.length;$('centerstart').disabled=!dataLoaded||!!animation||!available.length;$('undo').disabled=!!animation||!selectedOrder.length;$('reset').disabled=!!animation||!selectedOrder.length;
+ $('exporttxt').disabled=!dataLoaded||!!animation;$('start').disabled=!dataLoaded||!!animation||!available.length;$('centerstart').disabled=!dataLoaded||!!animation||!available.length;$('undo').disabled=!!animation||!selectedOrder.length;$('reset').disabled=!!animation||!selectedOrder.length;
 }
 function clearBall(){wheelNames=available.slice();highlight=-1;settled=null;ballVisible=false;phase='idle';}
 $('list').addEventListener('change',e=>{if(animation||e.target.type!=='checkbox')return;const item=all[Number(e.target.dataset.i)];if(!item)return;
@@ -260,6 +297,29 @@ function frame(now){if(animation){const a=animation,t=clamp((now-a.begin)/1000,0
 function undo(){if(animation||!selectedOrder.length)return;selectedOrder.pop();persist();sync();clearBall();$('winner').textContent='—';$('subresult').textContent='Última exclusión anulada';$('status').textContent='Lista actualizada';}
 function reset(){if(animation||!selectedOrder.length)return;if(!confirm('¿Reincorporar a todos los estudiantes al sorteo?'))return;
  selectedOrder=[];persist();sync();clearBall();$('winner').textContent='—';$('subresult').textContent='Todos están disponibles';$('status').textContent='Listado restaurado';}
+function exportNames(kind){
+ if(!dataLoaded||animation)return;
+ const entries=(kind==='all'?all:remaining()).map(x=>x.full);
+ if(!entries.length){$('status').textContent='No quedan alumnos pendientes para exportar.';return;}
+ const content='\uFEFF'+entries.join('\r\n')+'\r\n';
+ const blob=new Blob([content],{type:'text/plain;charset=utf-8'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=kind==='all'?'alumnos_todos.txt':'alumnos_pendientes.txt';
+ document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),3000);
+ $('exportdialog').close();
+ $('status').textContent='TXT descargado: '+entries.length+' alumnos ('+(kind==='all'?'lista completa':'pendientes')+').';
+}
+$('exporttxt').addEventListener('click',()=>{
+ if(!dataLoaded||animation)return;
+ $('exportall').textContent='Todos los alumnos ('+all.length+')';
+ $('exportpending').textContent='Solo los pendientes ('+remaining().length+')';
+ $('exportpending').disabled=remaining().length===0;
+ $('exportdialog').showModal();
+});
+$('exportall').addEventListener('click',()=>exportNames('all'));
+$('exportpending').addEventListener('click',()=>exportNames('pending'));
+$('exportcancel').addEventListener('click',()=>$('exportdialog').close());
 $('loadtxt').addEventListener('click',()=>{if(!animation)$('rosterFile').click()});
 $('rosterFile').addEventListener('change',async e=>{
  const file=e.target.files&&e.target.files[0];if(!file)return;
